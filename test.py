@@ -32,13 +32,13 @@ def start():
 
     octo.schedule(1, ping)
 
-    yield from octo.queue.start(False)
-    yield from octo.queue.listen()
+    #  yield from octo.queue.start(False)
+    #  yield from octo.queue.listen()
 
-    yield from octo.queue.submit(remote)
-    yield from octo.queue.submit(remote)
-    yield from octo.queue.submit(remote)
-    yield from octo.queue.submit(remote)
+    #  yield from octo.queue.submit(remote)
+    #  yield from octo.queue.submit(remote)
+    #  yield from octo.queue.submit(remote)
+    #  yield from octo.queue.submit(remote)
 
     results = yield from asyncio.gather(*[
         octo.submit(coro()),

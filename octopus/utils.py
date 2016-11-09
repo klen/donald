@@ -9,6 +9,10 @@ class AsyncMixin:
     def is_closed(self):
         return not self._loop or self._loop.is_closed()
 
+    @property
+    def loop(self):
+        return self._loop
+
 
 class AttrDict(dict):
 

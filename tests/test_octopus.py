@@ -1,7 +1,8 @@
-import pytest
-import time
 import asyncio
+import pytest
 import threading
+import time
+
 from octopus import Octopus
 
 
@@ -21,7 +22,7 @@ def func(num=0):
 
 @asyncio.coroutine
 def ping():
-    print('Pong')
+    print('Pong', time.time())
 
 
 @pytest.mark.asyncio
@@ -34,9 +35,9 @@ async def test_octopus():
         octo.submit(coro, 1),
         octo.submit(func, 2),
     ])
-    octo.params.always_eager = True
     await octo.stop()
     assert results == ['coro0', 'coro1', 'func2']
 
+    octo.params.always_eager = True
     result = await octo.submit(coro, 3)
     assert result == 'coro3'

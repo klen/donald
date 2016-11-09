@@ -3,7 +3,6 @@
 import asyncio
 import atexit
 import datetime
-import random
 
 from . import logger
 from .queue import Queue
@@ -13,7 +12,7 @@ from .worker import AsyncThreadWorker, call_with_loop
 
 class Octopus(AsyncMixin):
 
-    """I'am an octopus."""
+    """I'am on octopus."""
 
     defaults = dict(
 
@@ -37,8 +36,11 @@ class Octopus(AsyncMixin):
 
         # Base loop and queue
         self._loop = loop or asyncio.get_event_loop()
-        self._threads = tuple(AsyncThreadWorker() for _ in range(self.params.num_threads))
+        num_threads = 1 if self.params.num_threads < 1 else self.params.num_threads
+        self._threads = tuple(AsyncThreadWorker() for _ in range(num_threads))
+        self._tqueue = asyncio.Queue(maxsize=len(self._threads), loop=self._loop)
         self._schedules = []
+        self._closing = False
 
         self.queue = Queue(self, loop=self._loop)
         self.params.always_eager = self.params.always_eager or not len(self._threads)
@@ -49,34 +51,57 @@ class Octopus(AsyncMixin):
         :returns: A coroutine
         """
         logger.warn('Start Octopus')
+
         atexit.register(self.stop)
-        return asyncio.gather(*[
-            asyncio.wrap_future(t.start(), loop=self._loop) for t in self._threads])
+
+        futures = []
+        for t in self._threads:
+            f = asyncio.wrap_future(t.start(), loop=self._loop)
+            f.add_done_callback(lambda f: self._tqueue.put_nowait(t))
+            futures.append(f)
+
+        self.closing = False
+        return asyncio.wait(futures)
 
     def stop(self):
-        """Stop workers. Disconnect from queue
+        """Stop workers. Disconnect from queue. Cancel schedules.
 
-        :returns: A coroutine
+        The method could be called syncroniously too.
+
+        :returns: A future
         """
-        logger.warn('Stop Octopus')
-        futures = [self.queue.stop()]
-        futures += [asyncio.wrap_future(t.stop(), loop=self._loop) for t in self._threads]
+        if self.is_closed() or self.closing:
+            return False
+
+        logger.warn('Stop Octopus.')
 
         for task in self._schedules:
             task.cancel()
 
-        return asyncio.gather(*futures)
+        # Stop queue
+        tasks = [asyncio.ensure_future(self.queue.stop())]
 
+        # Stop workers
+        tasks += [
+            asyncio.ensure_future(asyncio.wrap_future(t.stop(), loop=self.loop))
+            for t in self._threads]
+
+        self.closing = True
+        return asyncio.wait([self.queue.stop()])
+
+    @asyncio.coroutine
     def submit(self, func, *args, **kwargs):
         """Submit given function/coroutine."""
         if self.params.always_eager:
             future = call_with_loop(self._loop, func, *args, **kwargs)
-        else:
-            # TODO: Use better method to choose workers.
-            t = random.choice(self._threads)
-            future = t.submit(func, *args, **kwargs)
 
-        return asyncio.wrap_future(future, loop=self._loop)
+        else:
+            worker = yield from self._tqueue.get()
+            future, waiter = worker.submit(func, *args, **kwargs)
+            waiter = asyncio.wrap_future(waiter, loop=self._loop)
+            waiter.add_done_callback(lambda f: self._tqueue.put_nowait(worker))
+
+        return (yield from asyncio.wrap_future(future, loop=self._loop))
 
     def schedule(self, interval, func, *args, **kwargs):
         """Run given func/coro periodically."""

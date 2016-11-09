@@ -39,8 +39,13 @@ class AsyncThreadWorker(AsyncMixin, threading.Thread):
         """Submit function/coroutine to current loop."""
         if not self.is_running():
             raise RuntimeError('Worker loop is stopped.')
+
         logger.info('Submit task with worker: %d' % id(self))
-        return call_with_loop(self._loop, func, *args, **kwargs)
+        job = call_with_loop(self._loop, func, *args, **kwargs)
+        waiter = self._loop.create_future()
+        self._loop.call_soon(
+            asyncio.futures._set_result_unless_cancelled, waiter, True)
+        return job, waiter
 
 
 def call_with_loop(loop, func, *args, **kwargs):

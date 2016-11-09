@@ -52,9 +52,10 @@ class Queue(AsyncMixin):
 
     @asyncio.coroutine
     def stop(self):
-        logger.warn('Disconnect from queue.')
-        if not self.is_connected():
+        if not self.is_connected() or self.is_closed():
             return False
+
+        logger.warn('Disconnect from queue.')
 
         yield from self._protocol.close()
         self._transport.close()
