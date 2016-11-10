@@ -59,7 +59,6 @@ class Donald(AsyncMixin, metaclass=Singleton):
             fut.add_done_callback(lambda _: self._tqueue.put_nowait(thread))
             return fut
 
-
         self.closing = False
         return asyncio.wait(map(closure, self._threads))
 
@@ -97,13 +96,14 @@ class Donald(AsyncMixin, metaclass=Singleton):
 
         return asyncio.ensure_future(self._submit(func, *args, **kwargs))
 
-    async def _submit(self, func, *args, **kwargs):
+    @asyncio.coroutine
+    def _submit(self, func, *args, **kwargs):
         """Wait for free worker and submit to it."""
-        worker = await self._tqueue.get()
+        worker = yield from self._tqueue.get()
         future, waiter = worker.submit(func, *args, **kwargs)
         waiter = asyncio.wrap_future(waiter, loop=self._loop)
         waiter.add_done_callback(lambda f: self._tqueue.put_nowait(worker))
-        return (await asyncio.wrap_future(future, loop=self._loop))
+        return (yield from asyncio.wrap_future(future, loop=self._loop))
 
     def schedule(self, interval, func, *args, **kwargs):
         """Run given func/coro periodically."""
@@ -113,10 +113,11 @@ class Donald(AsyncMixin, metaclass=Singleton):
         if not isinstance(interval, float):
             interval = float(interval)
 
-        async def scheduler():
+        @asyncio.coroutine
+        def scheduler():
             while self.is_running():
                 self.submit(func, *args, **kwargs)
-                await asyncio.sleep(interval, loop=self._loop)
+                yield from asyncio.sleep(interval, loop=self._loop)
 
         logger.info('Schedule %r' % func)
         self._schedules.append(asyncio.ensure_future(scheduler(), loop=self._loop))
