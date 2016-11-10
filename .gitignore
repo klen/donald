@@ -1,4 +1,6 @@
 /.cache
 /_
-/todo.txt
+/build
+/dist
 /env
+/todo.txt

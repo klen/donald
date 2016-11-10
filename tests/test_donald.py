@@ -3,7 +3,7 @@ import pytest
 import threading
 import time
 
-from octopus import Octopus
+from donald import Donald
 
 
 async def coro(num=0):
@@ -26,18 +26,18 @@ def ping():
 
 
 @pytest.mark.asyncio
-async def test_octopus():
-    octo = Octopus(num_threads=3, loglevel='debug')
-    await octo.start()
-    octo.schedule(.2, ping)
+async def test_donald():
+    donald = Donald(num_threads=3, loglevel='debug')
+    await donald.start()
+    donald.schedule(.2, ping)
     results = await asyncio.gather(*[
-        octo.submit(coro()),
-        octo.submit(coro, 1),
-        octo.submit(func, 2),
+        donald.submit(coro()),
+        donald.submit(coro, 1),
+        donald.submit(func, 2),
     ])
-    await octo.stop()
+    await donald.stop()
     assert results == ['coro0', 'coro1', 'func2']
 
-    octo.params.always_eager = True
-    result = await octo.submit(coro, 3)
+    donald.params.always_eager = True
+    result = await donald.submit(coro, 3)
     assert result == 'coro3'

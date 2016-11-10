@@ -1,4 +1,4 @@
-"""Main Octopus class."""
+"""Main Donald class."""
 
 import asyncio
 import atexit
@@ -6,13 +6,13 @@ import datetime
 
 from . import logger
 from .queue import Queue
-from .utils import AsyncMixin, AttrDict
+from .utils import AsyncMixin, AttrDict, Singleton
 from .worker import AsyncThreadWorker, call_with_loop
 
 
-class Octopus(AsyncMixin):
+class Donald(AsyncMixin, metaclass=Singleton):
 
-    """I'am on octopus."""
+    """I'am on Donald."""
 
     defaults = dict(
 
@@ -28,7 +28,7 @@ class Octopus(AsyncMixin):
     )
 
     def __init__(self, loop=None, **params):
-        """Initialize octopus parameters."""
+        """Initialize donald parameters."""
         self.params = AttrDict(self.defaults)
         self.params.update(params)
 
@@ -50,18 +50,18 @@ class Octopus(AsyncMixin):
 
         :returns: A coroutine
         """
-        logger.warn('Start Octopus')
+        logger.warn('Start Donald')
 
         atexit.register(self.stop)
 
-        futures = []
-        for t in self._threads:
-            f = asyncio.wrap_future(t.start(), loop=self._loop)
-            f.add_done_callback(lambda f: self._tqueue.put_nowait(t))
-            futures.append(f)
+        def closure(thread):
+            fut = asyncio.wrap_future(thread.start(), loop=self._loop)
+            fut.add_done_callback(lambda _: self._tqueue.put_nowait(thread))
+            return fut
+
 
         self.closing = False
-        return asyncio.wait(futures)
+        return asyncio.wait(map(closure, self._threads))
 
     def stop(self):
         """Stop workers. Disconnect from queue. Cancel schedules.
@@ -73,7 +73,7 @@ class Octopus(AsyncMixin):
         if self.is_closed() or self.closing:
             return False
 
-        logger.warn('Stop Octopus.')
+        logger.warn('Stop Donald.')
 
         for task in self._schedules:
             task.cancel()
@@ -89,19 +89,21 @@ class Octopus(AsyncMixin):
         self.closing = True
         return asyncio.wait([self.queue.stop()])
 
-    @asyncio.coroutine
     def submit(self, func, *args, **kwargs):
         """Submit given function/coroutine."""
         if self.params.always_eager:
             future = call_with_loop(self._loop, func, *args, **kwargs)
+            return asyncio.wrap_future(future, loop=self._loop)
 
-        else:
-            worker = yield from self._tqueue.get()
-            future, waiter = worker.submit(func, *args, **kwargs)
-            waiter = asyncio.wrap_future(waiter, loop=self._loop)
-            waiter.add_done_callback(lambda f: self._tqueue.put_nowait(worker))
+        return asyncio.ensure_future(self._submit(func, *args, **kwargs))
 
-        return (yield from asyncio.wrap_future(future, loop=self._loop))
+    async def _submit(self, func, *args, **kwargs):
+        """Wait for free worker and submit to it."""
+        worker = await self._tqueue.get()
+        future, waiter = worker.submit(func, *args, **kwargs)
+        waiter = asyncio.wrap_future(waiter, loop=self._loop)
+        waiter.add_done_callback(lambda f: self._tqueue.put_nowait(worker))
+        return (await asyncio.wrap_future(future, loop=self._loop))
 
     def schedule(self, interval, func, *args, **kwargs):
         """Run given func/coro periodically."""
@@ -113,10 +115,11 @@ class Octopus(AsyncMixin):
 
         async def scheduler():
             while self.is_running():
-                await self.submit(func, *args, **kwargs)
-                await asyncio.sleep(interval)
+                self.submit(func, *args, **kwargs)
+                await asyncio.sleep(interval, loop=self._loop)
 
+        logger.info('Schedule %r' % func)
         self._schedules.append(asyncio.ensure_future(scheduler(), loop=self._loop))
 
     def __str__(self):
-        return 'Octopus [%s]' % self.params['num_threads']
+        return 'Donald [%s]' % self.params['num_threads']

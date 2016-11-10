@@ -1,26 +1,32 @@
-Peewee Migrate
-##############
+Donald
+######
 
 .. _description:
 
-Peewee Migrate -- A simple migration engine for Peewee
+Donald -- A simple task engine for Asyncio.
+
+The main goal for Donald to run async/sync code without blocking main loop.
+
+Donald supports synchronous and asynchronous paradigms. The package is running
+coroutines and functions in multi loops. Donald could run periodic tasks and
+listen AMQP queues.
 
 .. _badges:
 
-.. image:: http://img.shields.io/travis/klen/peewee_migrate.svg?style=flat-square
-    :target: http://travis-ci.org/klen/peewee_migrate
+.. image:: http://img.shields.io/travis/klen/donald.svg?style=flat-square
+    :target: http://travis-ci.org/klen/donald
     :alt: Build Status
 
-.. image:: http://img.shields.io/coveralls/klen/peewee_migrate.svg?style=flat-square
+.. image:: http://img.shields.io/coveralls/klen/donald.svg?style=flat-square
     :target: https://coveralls.io/r/klen/pewee_migrate
     :alt: Coverals
 
-.. image:: http://img.shields.io/pypi/v/peewee_migrate.svg?style=flat-square
-    :target: https://pypi.python.org/pypi/peewee_migrate
+.. image:: http://img.shields.io/pypi/v/donald.svg?style=flat-square
+    :target: https://pypi.python.org/pypi/donald
     :alt: Version
 
-.. image:: http://img.shields.io/pypi/dm/peewee_migrate.svg?style=flat-square
-    :target: https://pypi.python.org/pypi/peewee_migrate
+.. image:: http://img.shields.io/pypi/dm/donald.svg?style=flat-square
+    :target: https://pypi.python.org/pypi/donald
     :alt: Downloads
 
 .. _contents:
@@ -32,103 +38,61 @@ Peewee Migrate -- A simple migration engine for Peewee
 Requirements
 =============
 
-- python 2.7,3.3,3.4
+- python 3.3+
 
 .. _installation:
 
 Installation
 =============
 
-**Peewee Migrate** should be installed using pip: ::
+**Donald** should be installed using pip: ::
 
-    pip install peewee_migrate
+    pip install donald
 
 .. _usage:
 
 Usage
 =====
 
-Do you want Flask_ integration? Look at Flask-PW_.
+From shell: ::
 
-From shell
-----------
+    $ donald --help
 
-Getting help: ::
 
-    $ pw_migrate --help
+From synchronous python code: ::
 
-    Usage: pw_migrate [OPTIONS] COMMAND [ARGS]...
+    donald = Donald()
+    donald.start()
 
-    Options:
-        --help  Show this message and exit.
+    donald.submit(<coro or function>)
+    donald.schedule(<seconds>, <coro or function>)
 
-    Commands:
-        create   Create migration.
-        migrate  Run migrations.
-        rollback Rollback migration.
 
-Create migration: ::
+From asynchronous python code: ::
 
-    $ pw_migrate create --help
+    donald = Donald()
 
-    Usage: pw_migrate create [OPTIONS] NAME
+    await donald.start()
+    result = await donald.submit(<coro or function>)
+    await donald.schedule(<seconds>, <coro or function>)
 
-        Create migration.
-
-    Options:
-        --auto TEXT       Create migrations automatically. Set path to your models module.
-        --database TEXT   Database connection
-        --directory TEXT  Directory where migrations are stored
-        -v, --verbose
-        --help            Show this message and exit.
-
-Run migrations: ::
-
-    $ pw_migrate migrate --help
-
-    Usage: pw_migrate migrate [OPTIONS]
-
-        Run migrations.
-
-    Options:
-        --name TEXT       Select migration
-        --database TEXT   Database connection
-        --directory TEXT  Directory where migrations are stored
-        -v, --verbose
-        --help            Show this message and exit.
-
-From python
+Listen AMQP
 -----------
-::
 
-    from peewee_migrate import Router
-    from peewee import SqliteDatabase
+AMQP: ::
 
-    router = Router(SqliteDatabase('test.db'))
+    donald = Donald()
 
-    # Create migration
-    router.create('migration_name')
+    await donald.start()
 
-    # Run migration/migrations
-    router.run('migration_name')
+    # Send task to queue
+    await donald.queue.start(False)
+    await donald.queue.submit(<coro or func>, *args, **kwargs)
 
-    # Run all unapplied migrations
-    router.run()
+    # Listen tasks
+    await donald.queue.listen()
+    await donald.listen(<AMQP URL>)
 
-Migration files
----------------
-
-By default, migration files are looked up in ``os.getcwd()/migrations`` directory, but custom directory can be given.
-
-Migration files are sorted and applied in ascending order per their filename.
-
-Each migration file must specify ``migrate()`` function and may specify ``rollback()`` function::
-
-    def migrate(migrator, database, fake=False, **kwargs):
-        pass
-
-    def rollback(migrator, database, fake=False, **kwargs):
-        pass
 
 .. _bugtracker:
 
@@ -137,14 +101,14 @@ Bug tracker
 
 If you have any suggestions, bug reports or
 annoyances please report them to the issue tracker
-at https://github.com/klen/peewee_migrate/issues
+at https://github.com/klen/donald/issues
 
 .. _contributing:
 
 Contributing
 ============
 
-Development of starter happens at github: https://github.com/klen/peewee_migrate
+Development of starter happens at github: https://github.com/klen/donald
 
 
 Contributors

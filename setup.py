@@ -11,7 +11,7 @@ def _read(fname):
     except IOError:
         return ''
 
-_meta = _read('octopus/__init__.py')
+_meta = _read('donald/__init__.py')
 _license = re.search(r'^__license__\s*=\s*"(.*)"', _meta, re.M).group(1)
 _project = re.search(r'^__project__\s*=\s*"(.*)"', _meta, re.M).group(1)
 _version = re.search(r'^__version__\s*=\s*"(.*)"', _meta, re.M).group(1)
@@ -24,14 +24,14 @@ setup(
     name=_project,
     version=_version,
     license=_license,
-    description=('Octopus'),
+    description=('Donald is here'),
     long_description=_read('README.rst'),
     platforms=('Any'),
     keywords = "asyncio tasks queue".split(), # noqa
 
     author='Kirill Klenov',
     author_email='horneds@gmail.com',
-    url='https://github.com/klen/octopus',
+    url='https://github.com/klen/donald',
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
@@ -46,7 +46,11 @@ setup(
         'Topic :: Utilities',
     ],
 
-    packages=['octopus'],
+    packages=['donald'],
     include_package_data=True,
     install_requires=install_requires,
+    entry_points="""
+    [console_scripts]
+    donald=donald.__main__:main
+    """,
 )

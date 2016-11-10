@@ -1,7 +1,7 @@
 import asyncio
 import threading
 
-from octopus.core import Octopus
+from donald.core import Donald
 
 
 counter = 0
@@ -25,31 +25,34 @@ def remote(name='world'):
     return 42
 
 
-@asyncio.coroutine
-def start():
-    octo = Octopus(num_threads=3)
-    yield from octo.start()
+donald = Donald()
+donald.schedule(1, ping)
 
-    octo.schedule(1, ping)
+#  @asyncio.coroutine
+#  def start():
+    #  donald = Donald(num_threads=3)
+    #  yield from donald.start()
 
-    #  yield from octo.queue.start(False)
-    #  yield from octo.queue.listen()
+    #  donald.schedule(1, ping)
 
-    #  yield from octo.queue.submit(remote)
-    #  yield from octo.queue.submit(remote)
-    #  yield from octo.queue.submit(remote)
-    #  yield from octo.queue.submit(remote)
+    #  #  yield from octo.queue.start(False)
+    #  #  yield from octo.queue.listen()
 
-    results = yield from asyncio.gather(*[
-        octo.submit(coro()),
-        octo.submit(coro()),
-        octo.submit(coro()),
-    ])
-    yield from octo.stop()
-    return results
+    #  #  yield from octo.queue.submit(remote)
+    #  #  yield from octo.queue.submit(remote)
+    #  #  yield from octo.queue.submit(remote)
+    #  #  yield from octo.queue.submit(remote)
+
+    #  results = yield from asyncio.gather(*[
+        #  donald.submit(coro()),
+        #  donald.submit(coro()),
+        #  donald.submit(coro()),
+    #  ])
+    #  yield from donald.stop()
+    #  return results
 
 
-loop = asyncio.get_event_loop()
-results = loop.run_until_complete(start())
+#  loop = asyncio.get_event_loop()
+#  results = loop.run_until_complete(start())
 
-print(111, results)
+#  print(111, results)

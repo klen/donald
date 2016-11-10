@@ -1,1 +1,2 @@
 aioamqp
+click

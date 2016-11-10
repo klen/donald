@@ -10,7 +10,7 @@ from .utils import AsyncMixin
 
 class Queue(AsyncMixin):
 
-    def __init__(self, coro, loop=None, exchange='octopus', queue='octopus', **params):
+    def __init__(self, coro, loop=None, exchange='donald', queue='donald', **params):
         self.params = params
 
         self._coro = coro
@@ -74,5 +74,5 @@ class Queue(AsyncMixin):
     def callback(self, channel, body, envelope, properties):
         func, args, kwargs = pickle.loads(body)
         result = yield from self._coro.submit(func, *args, **kwargs)
-        print('Get result %r %r' % (result, properties.message_id))
+        logger.info('Get result %r %r', result, properties.message_id)
         yield from channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
