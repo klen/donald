@@ -26,7 +26,9 @@ class AsyncThreadWorker(AsyncMixin, threading.Thread):
 
     def stop(self):
         if self.is_closed():
-            return False
+            fut = Future()
+            fut.set_result(False)
+            return fut
         logger.info('Stop loop for worker: %d' % id(self))
         for task in asyncio.Task.all_tasks(loop=self._loop):
             task.cancel()

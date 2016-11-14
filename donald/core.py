@@ -10,6 +10,10 @@ from .utils import AsyncMixin, AttrDict, Singleton, FileLock, FileLocked
 from .worker import AsyncThreadWorker, call_with_loop
 
 
+AIOFALSE = asyncio.Future()
+AIOFALSE.set_result(False)
+
+
 class Donald(AsyncMixin, metaclass=Singleton):
 
     """I'am on Donald."""
@@ -57,11 +61,12 @@ class Donald(AsyncMixin, metaclass=Singleton):
         logger.warn('Start Donald')
         if self.params.filelock:
             try:
-                self._lock.aquire()
+                self._lock.acquire()
             except FileLocked:
                 logger.warn('Donald is locked. Exit.')
-                return False
+                return AIOFALSE
 
+        self._closing = False
         atexit.register(self.stop)
 
         def closure(thread):
@@ -69,7 +74,6 @@ class Donald(AsyncMixin, metaclass=Singleton):
             fut.add_done_callback(lambda _: self._tqueue.put_nowait(thread))
             return fut
 
-        self.closing = False
         return asyncio.wait(map(closure, self._threads))
 
     def stop(self):
@@ -79,8 +83,8 @@ class Donald(AsyncMixin, metaclass=Singleton):
 
         :returns: A future
         """
-        if self.is_closed() or self.closing:
-            return False
+        if self.is_closed() or self._closing:
+            return AIOFALSE
 
         logger.warn('Stop Donald.')
 
@@ -95,7 +99,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
             asyncio.ensure_future(asyncio.wrap_future(t.stop(), loop=self.loop))
             for t in self._threads]
 
-        self.closing = True
+        self._closing = True
 
         if self.params.filelock:
             self._lock.release()

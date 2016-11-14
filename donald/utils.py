@@ -69,7 +69,7 @@ class FileLock(object):
         if os.path.exists(self.fname):
             raise FileLocked()
         self.fh = os.open(self.fname, self.flags)
-        os.write(self.fh, str(os.getpid()))
+        os.write(self.fh, bytes(os.getpid()))
 
     def release(self):
         if self.fh:
