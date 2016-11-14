@@ -6,7 +6,7 @@ import datetime
 
 from . import logger
 from .queue import Queue
-from .utils import AsyncMixin, AttrDict, Singleton
+from .utils import AsyncMixin, AttrDict, Singleton, FileLock, FileLocked
 from .worker import AsyncThreadWorker, call_with_loop
 
 
@@ -21,6 +21,9 @@ class Donald(AsyncMixin, metaclass=Singleton):
 
         # Number of workers
         num_threads=4,
+
+        # Ensure that the Donald starts only once
+        filelock=None,
 
         # logging level
         loglevel='INFO',
@@ -41,6 +44,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self._tqueue = asyncio.Queue(maxsize=len(self._threads), loop=self._loop)
         self._schedules = []
         self._closing = False
+        self._lock = FileLock(self.params.filelock)
 
         self.queue = Queue(self, loop=self._loop)
         self.params.always_eager = self.params.always_eager or not len(self._threads)
@@ -51,6 +55,12 @@ class Donald(AsyncMixin, metaclass=Singleton):
         :returns: A coroutine
         """
         logger.warn('Start Donald')
+        if self.params.filelock:
+            try:
+                self._lock.aquire()
+            except FileLocked:
+                logger.warn('Donald is locked. Exit.')
+                return False
 
         atexit.register(self.stop)
 
@@ -86,6 +96,10 @@ class Donald(AsyncMixin, metaclass=Singleton):
             for t in self._threads]
 
         self.closing = True
+
+        if self.params.filelock:
+            self._lock.release()
+
         return asyncio.wait([self.queue.stop()])
 
     def submit(self, func, *args, **kwargs):

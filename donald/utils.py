@@ -1,3 +1,4 @@
+import os
 from concurrent.futures import Future
 
 
@@ -45,3 +46,39 @@ class Singleton(type):
         if not cls.instance:
             cls.instance = super(Singleton, cls).__call__(*args, **kw)
         return cls.instance
+
+
+class FileLocked(Exception):
+    pass
+
+
+class FileLock(object):
+
+    """Simplest filelock implementation."""
+
+    def __init__(self, fname, timeout=None, force=False):
+        self.fname = fname
+        self.fh = None
+        self.flags = os.O_CREAT | os.O_RDWR
+        try:
+            self.flags = self.flags | os.O_EXLOCK
+        except AttributeError:
+            self.flags = self.flags | os.O_NOINHERIT
+
+    def acquire(self):
+        if os.path.exists(self.fname):
+            raise FileLocked()
+        self.fh = os.open(self.fname, self.flags)
+        os.write(self.fh, str(os.getpid()))
+
+    def release(self):
+        if self.fh:
+            os.close(self.fh)
+        os.remove(self.fname)
+
+    def __enter__(self):
+        self.acquire()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.release()
