@@ -3,6 +3,7 @@
 import asyncio
 import atexit
 import datetime
+import random
 
 from . import logger
 from .queue import Queue
@@ -40,12 +41,13 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self.params.update(params)
 
         logger.setLevel(self.params['loglevel'].upper())
+        logger.propagate = False
 
         # Base loop and queue
         self._loop = loop or asyncio.get_event_loop()
         num_threads = 1 if self.params.num_threads < 1 else self.params.num_threads
         self._threads = tuple(AsyncThreadWorker() for _ in range(num_threads))
-        self._tqueue = asyncio.Queue(maxsize=len(self._threads), loop=self._loop)
+        self._waiters = {}
         self._schedules = []
         self._closing = False
         self._lock = FileLock(self.params.filelock)
@@ -69,12 +71,10 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self._closing = False
         atexit.register(self.stop)
 
-        def closure(thread):
-            fut = asyncio.wrap_future(thread.start(), loop=self._loop)
-            fut.add_done_callback(lambda _: self._tqueue.put_nowait(thread))
-            return fut
+        def start_worker(w):
+            return self.future(w.start())
 
-        return asyncio.wait(map(closure, self._threads))
+        return asyncio.wait(map(start_worker, self._threads))
 
     def stop(self):
         """Stop workers. Disconnect from queue. Cancel schedules.
@@ -96,7 +96,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
 
         # Stop workers
         tasks += [
-            asyncio.ensure_future(asyncio.wrap_future(t.stop(), loop=self.loop))
+            asyncio.ensure_future(self.future(t.stop()))
             for t in self._threads]
 
         self._closing = True
@@ -106,22 +106,29 @@ class Donald(AsyncMixin, metaclass=Singleton):
 
         return asyncio.wait([self.queue.stop()])
 
+    def future(self, fut):
+        """Just a shortcut on asyncio.wrap_future."""
+        return asyncio.wrap_future(fut, loop=self._loop)
+
     def submit(self, func, *args, **kwargs):
         """Submit given function/coroutine."""
         if self.params.always_eager:
             future = call_with_loop(self._loop, func, *args, **kwargs)
-            return asyncio.wrap_future(future, loop=self._loop)
+            return self.future(future)
 
         return asyncio.ensure_future(self._submit(func, *args, **kwargs))
 
     @asyncio.coroutine
     def _submit(self, func, *args, **kwargs):
         """Wait for free worker and submit to it."""
-        worker = yield from self._tqueue.get()
-        future, waiter = worker.submit(func, *args, **kwargs)
-        waiter = asyncio.wrap_future(waiter, loop=self._loop)
-        waiter.add_done_callback(lambda f: self._tqueue.put_nowait(worker))
-        return (yield from asyncio.wrap_future(future, loop=self._loop))
+        if len(self._waiters) == len(self._threads):
+            yield from asyncio.wait(
+                self._waiters, loop=self._loop, return_when=asyncio.FIRST_COMPLETED)
+        worker = random.choice(self._threads)
+        future, waiter = map(self.future, worker.submit(func, *args, **kwargs))
+        self._waiters[id(worker)] = waiter
+        waiter.add_done_callback(lambda f: self._waiters.pop(id(worker), None))
+        return (yield from future)
 
     def schedule(self, interval, func, *args, **kwargs):
         """Run given func/coro periodically."""
@@ -141,4 +148,5 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self._schedules.append(asyncio.ensure_future(scheduler(), loop=self._loop))
 
     def __str__(self):
+        """String representation."""
         return 'Donald [%s]' % self.params['num_threads']
