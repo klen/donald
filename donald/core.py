@@ -37,11 +37,6 @@ class Donald(AsyncMixin, metaclass=Singleton):
         queue=dict(
             exchange='donald',
             queue='donald',
-            host='localhost',
-            port=None,
-            login='guest',
-            password='guest',
-            virtualhost='/',
         ),
 
     )

@@ -10,8 +10,17 @@ from .utils import AsyncMixin
 
 class Queue(AsyncMixin):
 
+    defaults = dict(
+        host='localhost',
+        port=None,
+        login='guest',
+        password='guest',
+        virtualhost='/',
+    )
+
     def __init__(self, coro, loop=None, exchange='donald', queue='donald', **params):
-        self.params = params
+        self.params = self.defaults
+        self.params.update(params)
 
         self._coro = coro
         self._loop = loop or asyncio.get_event_loop()
