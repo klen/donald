@@ -33,6 +33,17 @@ class Donald(AsyncMixin, metaclass=Singleton):
         # logging level
         loglevel='INFO',
 
+        # AMQP params
+        queue=dict(
+            exchange='donald',
+            queue='donald',
+            host='localhost',
+            port=None,
+            login='guest',
+            password='guest',
+            virtualhost='/',
+        ),
+
     )
 
     def __init__(self, loop=None, **params):
@@ -52,15 +63,18 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self._closing = False
         self._lock = FileLock(self.params.filelock)
 
-        self.queue = Queue(self, loop=self._loop)
+        self.queue = Queue(self, loop=self._loop, **self.params.queue)
         self.params.always_eager = self.params.always_eager or not len(self._threads)
 
-    def start(self):
+    def start(self, loop=None):
         """Start workers.
 
         :returns: A coroutine
         """
         logger.warn('Start Donald')
+        if loop is not None:
+            self._loop = self.queue._loop = loop
+
         if self.params.filelock:
             try:
                 self._lock.acquire()

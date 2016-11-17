@@ -29,7 +29,8 @@ class Queue(AsyncMixin):
         """Connect to message queue."""
         logger.warn('Connect to queue.')
         try:
-            self._transport, self._protocol = yield from aioamqp.connect(**self.params)
+            self._transport, self._protocol = yield from aioamqp.connect(
+                loop=self._loop, **self.params)
             self._channel = yield from self._protocol.channel()
 
             yield from self._channel.queue_declare(queue_name=self._queue, durable=True)
