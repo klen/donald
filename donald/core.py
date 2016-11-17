@@ -5,14 +5,10 @@ import atexit
 import datetime
 import random
 
-from . import logger
+from . import logger, AIOFALSE
 from .queue import Queue
 from .utils import AsyncMixin, AttrDict, Singleton, FileLock, FileLocked
 from .worker import AsyncThreadWorker, call_with_loop
-
-
-AIOFALSE = asyncio.Future()
-AIOFALSE.set_result(False)
 
 
 class Donald(AsyncMixin, metaclass=Singleton):
@@ -56,6 +52,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self._waiters = {}
         self._schedules = []
         self._closing = False
+        self._started = False
         self._lock = FileLock(self.params.filelock)
 
         self.queue = Queue(self, loop=self._loop, **self.params.queue)
@@ -83,6 +80,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
         def start_worker(w):
             return self.future(w.start())
 
+        self._started = True
         return asyncio.wait(map(start_worker, self._threads))
 
     def stop(self):
@@ -92,16 +90,16 @@ class Donald(AsyncMixin, metaclass=Singleton):
 
         :returns: A future
         """
-        if self.is_closed() or self._closing:
-            return AIOFALSE
+        # Stop queue
+        tasks = [asyncio.ensure_future(self.queue.stop())]
+
+        if self.is_closed() or self._closing or not self._started:
+            return asyncio.wait(tasks)
 
         logger.warn('Stop Donald.')
 
         for task in self._schedules:
             task.cancel()
-
-        # Stop queue
-        tasks = [asyncio.ensure_future(self.queue.stop())]
 
         # Stop workers
         tasks += [
@@ -113,7 +111,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
         if self.params.filelock:
             self._lock.release()
 
-        return asyncio.wait([self.queue.stop()])
+        return asyncio.wait(tasks)
 
     def future(self, fut):
         """Just a shortcut on asyncio.wrap_future."""

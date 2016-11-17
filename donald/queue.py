@@ -1,3 +1,4 @@
+"""AMPQ support."""
 import aioamqp
 import asyncio
 import pickle
@@ -62,6 +63,7 @@ class Queue(AsyncMixin):
 
     @asyncio.coroutine
     def stop(self):
+        """Stop listeners."""
         if not self.is_connected() or self.is_closed():
             return False
 
@@ -71,14 +73,14 @@ class Queue(AsyncMixin):
         self._transport.close()
         self._connected = False
 
-    @asyncio.coroutine
     def submit(self, func, *args, **kwargs):
         logger.info('Submit task to queue.')
-        yield from self._channel.basic_publish(
+        coro = self._channel.basic_publish(
             payload=pickle.dumps((func, args, kwargs)),
             exchange_name='', routing_key=self._queue,
             properties=dict(delivery_mode=2, message_id=str(uuid.uuid4()))
         )
+        return asyncio.ensure_future(coro, loop=self.loop)
 
     @asyncio.coroutine
     def callback(self, channel, body, envelope, properties):

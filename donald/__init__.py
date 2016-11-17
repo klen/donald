@@ -1,4 +1,10 @@
+"""Donald tasks' manager for Asyncio."""
 import logging
+import asyncio
+
+
+AIOFALSE = asyncio.Future()
+AIOFALSE.set_result(False)
 
 
 logger = logging.getLogger(__name__)
