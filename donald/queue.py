@@ -3,6 +3,7 @@ import aioamqp
 import asyncio
 import pickle
 import uuid
+from importlib import import_module
 
 
 from . import logger
@@ -20,6 +21,7 @@ class Queue(AsyncMixin):
     )
 
     def __init__(self, coro, loop=None, exchange='donald', queue='donald', **params):
+        """Initialize the queue."""
         self.params = self.defaults
         self.params.update(params)
 
@@ -32,6 +34,7 @@ class Queue(AsyncMixin):
         self._connected = False
 
     def is_connected(self):
+        """Check that the queue is connected."""
         return self._connected
 
     @asyncio.coroutine
@@ -74,7 +77,10 @@ class Queue(AsyncMixin):
         self._connected = False
 
     def submit(self, func, *args, **kwargs):
+        """Submit to the queue."""
         logger.info('Submit task to queue.')
+        if asyncio.iscoroutine(func):
+            raise RuntimeError('Submit coroutines to queue as coroutine-functions with params.')
         coro = self._channel.basic_publish(
             payload=pickle.dumps((func, args, kwargs)),
             exchange_name='', routing_key=self._queue,
@@ -84,7 +90,17 @@ class Queue(AsyncMixin):
 
     @asyncio.coroutine
     def callback(self, channel, body, envelope, properties):
+        """A Listener."""
         func, args, kwargs = pickle.loads(body)
+        if isinstance(func, str):
+            mod, _, func = func.rpartition('.')
+            try:
+                mod = import_module(mod)
+                func = getattr(mod, func)
+            except (ImportError, AttributeError) as exc:
+                logger.error(exc)
+                return False
+
         result = yield from self._coro.submit(func, *args, **kwargs)
         logger.info('Get result %r %r', result, properties.message_id)
         yield from channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
