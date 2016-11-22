@@ -41,3 +41,7 @@ async def test_donald():
     donald.params.always_eager = True
     result = await donald.submit(coro, 3)
     assert result == 'coro3'
+
+    result = await donald.queue.submit(coro, 3)
+    assert result == 'coro3'
+

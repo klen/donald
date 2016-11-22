@@ -7,7 +7,7 @@ from importlib import import_module
 
 
 from . import logger
-from .utils import AsyncMixin
+from .utils import AsyncMixin, AttrDict
 
 
 class Queue(AsyncMixin):
@@ -20,12 +20,12 @@ class Queue(AsyncMixin):
         virtualhost='/',
     )
 
-    def __init__(self, coro, loop=None, exchange='donald', queue='donald', **params):
+    def __init__(self, core, loop=None, exchange='donald', queue='donald', **params):
         """Initialize the queue."""
         self.params = self.defaults
         self.params.update(params)
 
-        self._coro = coro
+        self._core = core
         self._loop = loop or asyncio.get_event_loop()
         self._queue = queue
         self._transport = None
@@ -79,12 +79,18 @@ class Queue(AsyncMixin):
     def submit(self, func, *args, **kwargs):
         """Submit to the queue."""
         logger.info('Submit task to queue.')
+
+        payload = pickle.dumps((func, args, kwargs))
+        properties = dict(delivery_mode=2, message_id=str(uuid.uuid4()))
+
+        if self._core.params.always_eager:
+            return self.callback(self._channel, payload, None, AttrDict(properties))
+
         if asyncio.iscoroutine(func):
             raise RuntimeError('Submit coroutines to queue as coroutine-functions with params.')
+
         coro = self._channel.basic_publish(
-            payload=pickle.dumps((func, args, kwargs)),
-            exchange_name='', routing_key=self._queue,
-            properties=dict(delivery_mode=2, message_id=str(uuid.uuid4()))
+            payload=payload, exchange_name='', routing_key=self._queue, properties=properties
         )
         return asyncio.ensure_future(coro, loop=self.loop)
 
@@ -101,6 +107,8 @@ class Queue(AsyncMixin):
                 logger.error(exc)
                 return False
 
-        result = yield from self._coro.submit(func, *args, **kwargs)
+        result = yield from self._core.submit(func, *args, **kwargs)
         logger.info('Get result %r %r', result, properties.message_id)
-        yield from channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
+        if channel:
+            yield from channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
+        return result
