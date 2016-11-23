@@ -31,21 +31,27 @@ class Queue(AsyncMixin):
         self._transport = None
         self._protocol = None
         self._channel = None
+        self._started = False
         self._connected = False
 
     def is_connected(self):
         """Check that the queue is connected."""
         return self._connected
 
-    @asyncio.coroutine
     def start(self, listen=True):
         """Connect to message queue."""
-        logger.warn('Connect to queue.')
         if self._core.params.always_eager:
             return False
+        self._started = True
+        return asyncio.ensure_future(self.reconnect(listen), loop=self.loop)
+
+    @asyncio.coroutine
+    def reconnect(self, listen=True):
+        """Connect to queue."""
+        logger.warn('Connect to queue.')
         try:
             self._transport, self._protocol = yield from aioamqp.connect(
-                loop=self._loop, **self.params)
+                loop=self._loop, on_error=self.on_error, **self.params)
             self._channel = yield from self._protocol.channel()
 
             yield from self._channel.queue_declare(queue_name=self._queue, durable=True)
@@ -55,9 +61,17 @@ class Queue(AsyncMixin):
             if listen:
                 yield from self.listen()
 
-        except aioamqp.AmqpClosedConnection as exc:
-            logger.exception(exc)
-            logger.error('Connection is closed.')
+        except (aioamqp.AmqpClosedConnection, OSError) as exc:
+            self.on_error(exc)
+
+    def on_error(self, exc):
+        """Error's callback."""
+        self._connected = False
+        if not self._started or self.is_closed():
+            return False
+
+        logger.error(exc)
+        self.loop.call_later(1, asyncio.ensure_future, self.reconnect())
 
     def listen(self):
         """Run tasks from self.queue.
@@ -75,7 +89,7 @@ class Queue(AsyncMixin):
             return False
 
         logger.warn('Disconnect from queue.')
-
+        self._started = False
         yield from self._protocol.close()
         self._transport.close()
         self._connected = False
