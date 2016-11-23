@@ -91,27 +91,27 @@ class Donald(AsyncMixin, metaclass=Singleton):
         :returns: A future
         """
         # Stop queue
-        tasks = [asyncio.ensure_future(self.queue.stop())]
+        tasks = [asyncio.ensure_future(self.queue.stop(), loop=self._loop)]
 
         if self.is_closed() or self._closing or not self._started:
-            return asyncio.wait(tasks)
+            return asyncio.wait(tasks, loop=self._loop)
 
         logger.warn('Stop Donald.')
+
+        if self.params.filelock:
+            self._lock.release()
 
         for task in self._schedules:
             task.cancel()
 
         # Stop workers
         tasks += [
-            asyncio.ensure_future(self.future(t.stop()))
+            asyncio.ensure_future(self.future(t.stop()), loop=self._loop)
             for t in self._threads]
 
         self._closing = True
 
-        if self.params.filelock:
-            self._lock.release()
-
-        return asyncio.wait(tasks)
+        return asyncio.wait(tasks, loop=self._loop)
 
     def future(self, fut):
         """Just a shortcut on asyncio.wrap_future."""
