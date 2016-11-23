@@ -91,9 +91,12 @@ class Donald(AsyncMixin, metaclass=Singleton):
         :returns: A future
         """
         # Stop queue
+        if self.is_closed():
+            return AIOFALSE
+
         tasks = [asyncio.ensure_future(self.queue.stop(), loop=self._loop)]
 
-        if self.is_closed() or self._closing or not self._started:
+        if self._closing or not self._started:
             return asyncio.wait(tasks, loop=self._loop)
 
         logger.warn('Stop Donald.')

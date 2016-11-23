@@ -88,7 +88,8 @@ class Queue(AsyncMixin):
         properties = dict(delivery_mode=2, message_id=str(uuid.uuid4()))
 
         if self._core.params.always_eager:
-            return self.callback(self._channel, payload, None, AttrDict(properties))
+            return asyncio.ensure_future(
+                self.callback(self._channel, payload, None, AttrDict(properties)), loop=self.loop)
 
         if asyncio.iscoroutine(func):
             raise RuntimeError('Submit coroutines to queue as coroutine-functions with params.')
