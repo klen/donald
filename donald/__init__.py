@@ -16,7 +16,7 @@ logger.addHandler(handle)
 from .core import Donald # noqa
 
 
-__version__ = "0.0.11"
+__version__ = "0.0.12"
 __project__ = "Donald"
 __author__ = "Kirill Klenov <horneds@gmail.com>"
 __license__ = "BSD"
