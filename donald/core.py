@@ -83,7 +83,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self._started = True
         return asyncio.wait(map(start_worker, self._threads))
 
-    def stop(self):
+    def stop(self, *args):
         """Stop workers. Disconnect from queue. Cancel schedules.
 
         The method could be called syncroniously too.
