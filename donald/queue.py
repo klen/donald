@@ -6,7 +6,7 @@ import uuid
 from importlib import import_module
 
 
-from . import logger
+from . import logger, AIOFALSE
 from .utils import AsyncMixin, AttrDict
 
 
@@ -41,6 +41,8 @@ class Queue(AsyncMixin):
     def start(self, listen=True):
         """Connect to message queue."""
         logger.warn('Connect to queue.')
+        if self._core.params.always_eager:
+            return False
         try:
             self._transport, self._protocol = yield from aioamqp.connect(
                 loop=self._loop, **self.params)
@@ -62,6 +64,8 @@ class Queue(AsyncMixin):
 
         :returns: A coroutine
         """
+        if self._core.params.always_eager:
+            return AIOFALSE
         return self._channel.basic_consume(self.callback, queue_name=self._queue)
 
     @asyncio.coroutine
