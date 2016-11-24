@@ -60,10 +60,8 @@ class FileLock(object):
         self.fname = fname
         self.fh = None
         self.flags = os.O_CREAT | os.O_RDWR
-        try:
-            self.flags = self.flags | os.O_EXLOCK
-        except AttributeError:
-            self.flags = self.flags | os.O_NOINHERIT
+        for flag in ('O_EXLOCK', 'O_NOINHERIT'):
+            self.flags |= getattr(os, flag, 0)
 
     def acquire(self):
         if os.path.exists(self.fname):
