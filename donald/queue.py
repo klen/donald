@@ -43,10 +43,10 @@ class Queue(AsyncMixin):
         if self._core.params.always_eager:
             return False
         self._started = True
-        return asyncio.ensure_future(self.reconnect(listen), loop=self.loop)
+        return asyncio.ensure_future(self.connect(listen), loop=self.loop)
 
     @asyncio.coroutine
-    def reconnect(self, listen=True):
+    def connect(self, listen=True):
         """Connect to queue."""
         logger.warn('Connect to queue.')
         try:
@@ -71,7 +71,7 @@ class Queue(AsyncMixin):
             return False
 
         logger.error(exc)
-        self.loop.call_later(1, asyncio.ensure_future, self.reconnect())
+        self.loop.call_later(1, asyncio.ensure_future, self.connect())
 
     def listen(self):
         """Run tasks from self.queue.
