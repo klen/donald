@@ -1,10 +1,10 @@
 """AMPQ support."""
-import aioamqp
 import asyncio
 import pickle
 import uuid
 from importlib import import_module
 
+import aioamqp
 
 from . import logger, AIOFALSE
 from .utils import AsyncMixin, AttrDict
@@ -126,7 +126,12 @@ class Queue(AsyncMixin):
                 logger.error(exc)
                 return False
 
-        result = yield from self._core.submit(func, *args, **kwargs)
+        try:
+            result = yield from self._core.submit(func, *args, **kwargs)
+        except Exception as exc:
+            logger.error('Get exception for %r', properties.message_id)
+            return exc
+
         logger.info('Get result %r %r', result, properties.message_id)
         if channel:
             yield from channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
