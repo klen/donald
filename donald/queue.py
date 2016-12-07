@@ -97,6 +97,8 @@ class Queue(AsyncMixin):
     def submit(self, func, *args, **kwargs):
         """Submit to the queue."""
         logger.info('Submit task to queue.')
+        if not self._connected:
+            return AIOFALSE
 
         payload = pickle.dumps((func, args, kwargs))
         properties = dict(delivery_mode=2, message_id=str(uuid.uuid4()))
