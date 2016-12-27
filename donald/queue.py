@@ -98,7 +98,7 @@ class Queue(AsyncMixin):
 
     def submit(self, func, *args, **kwargs):
         """Submit to the queue."""
-        logger.info('Submit task to queue.')
+        logger.info('Submit task to queue: %r', func)
         payload = pickle.dumps((func, args, kwargs))
         properties = dict(delivery_mode=2, message_id=str(uuid.uuid4()))
 
@@ -135,7 +135,7 @@ class Queue(AsyncMixin):
         except Exception as exc:  # noqa
             return self._core.handle_exc(exc, func, *args, **kwargs)
 
-        logger.info('Get result %r %r', result, properties.message_id)
+        logger.info('Received result %r from message %r', result, properties.message_id)
         if channel:
             yield from channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
         return result
