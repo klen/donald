@@ -54,6 +54,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self._closing = False
         self._started = False
         self._lock = FileLock(self.params.filelock)
+        self._exc_handlers = []
 
         self.queue = Queue(self, loop=self._loop, **self.params.queue)
         self.params.always_eager = self.params.always_eager or not len(self._threads)
@@ -63,7 +64,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
 
         :returns: A coroutine
         """
-        logger.warn('Start Donald')
+        logger.warning('Start Donald')
         if loop is not None:
             self._loop = self.queue._loop = loop
 
@@ -71,7 +72,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
             try:
                 self._lock.acquire()
             except FileLocked:
-                logger.warn('Donald is locked. Exit.')
+                logger.warning('Donald is locked. Exit.')
                 return AIOFALSE
 
         self._closing = False
@@ -99,7 +100,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
         if self._closing or not self._started:
             return asyncio.wait(tasks, loop=self._loop)
 
-        logger.warn('Stop Donald.')
+        logger.warning('Stop Donald.')
 
         if self.params.filelock:
             self._lock.release()
@@ -126,7 +127,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
             future = call_with_loop(self._loop, func, *args, **kwargs)
             return self.future(future)
 
-        return asyncio.ensure_future(self._submit(func, *args, **kwargs))
+        return asyncio.ensure_future(self._submit(func, *args, **kwargs), loop=self._loop)
 
     @asyncio.coroutine
     def _submit(self, func, *args, **kwargs):
@@ -151,11 +152,21 @@ class Donald(AsyncMixin, metaclass=Singleton):
         @asyncio.coroutine
         def scheduler():
             while self.is_running():
-                self.submit(func, *args, **kwargs)
+                try:
+                    yield from self.submit(func, *args, **kwargs)
+                except Exception as exc:  # noqa
+                    self.handle_exc(exc, func, *args, **kwargs)
                 yield from asyncio.sleep(interval, loop=self._loop)
 
-        logger.info('Schedule %r' % func)
+        logger.info('Schedule %r', func)
         self._schedules.append(asyncio.ensure_future(scheduler(), loop=self._loop))
+
+    def handle_exc(self, exc, func, *args, **kwargs):
+        """Handle exception for periodic tasks."""
+        logger.error('Unhandled exception for %r', func)
+        logger.exception(exc)
+        for handler in self._exc_handlers:
+            call_with_loop(self._loop, handler, exc, *args, **kwargs)
 
     def __str__(self):
         """String representation."""

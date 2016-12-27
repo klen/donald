@@ -12,6 +12,8 @@ from .utils import AsyncMixin, AttrDict
 
 class Queue(AsyncMixin):
 
+    """Support message queue."""
+
     defaults = dict(
         host='localhost',
         port=None,
@@ -48,7 +50,7 @@ class Queue(AsyncMixin):
     @asyncio.coroutine
     def connect(self, listen=True):
         """Connect to queue."""
-        logger.warn('Connect to queue.')
+        logger.warning('Connect to queue.')
         try:
             self._transport, self._protocol = yield from aioamqp.connect(
                 loop=self._loop, on_error=self.on_error, **self.params)
@@ -65,7 +67,7 @@ class Queue(AsyncMixin):
             self.on_error(exc)
 
     def on_error(self, exc):
-        """Error's callback."""
+        """Error callback."""
         self._connected = False
         if not self._started or self.is_closed():
             return False
@@ -88,7 +90,7 @@ class Queue(AsyncMixin):
         if not self.is_connected() or self.is_closed():
             return False
 
-        logger.warn('Disconnect from queue.')
+        logger.warning('Disconnect from queue.')
         self._started = False
         yield from self._protocol.close()
         self._transport.close()
@@ -97,15 +99,15 @@ class Queue(AsyncMixin):
     def submit(self, func, *args, **kwargs):
         """Submit to the queue."""
         logger.info('Submit task to queue.')
-        if not self._connected:
-            return AIOFALSE
-
         payload = pickle.dumps((func, args, kwargs))
         properties = dict(delivery_mode=2, message_id=str(uuid.uuid4()))
 
         if self._core.params.always_eager:
             return asyncio.ensure_future(
                 self.callback(self._channel, payload, None, AttrDict(properties)), loop=self.loop)
+
+        if not self._connected:
+            return AIOFALSE
 
         if asyncio.iscoroutine(func):
             raise RuntimeError('Submit coroutines to queue as coroutine-functions with params.')
@@ -130,9 +132,8 @@ class Queue(AsyncMixin):
 
         try:
             result = yield from self._core.submit(func, *args, **kwargs)
-        except Exception as exc:
-            logger.error('Get exception for %r', properties.message_id)
-            return exc
+        except Exception as exc:  # noqa
+            return self._core.handle_exc(exc, func, *args, **kwargs)
 
         logger.info('Get result %r %r', result, properties.message_id)
         if channel:

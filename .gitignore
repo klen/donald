@@ -1,6 +1,9 @@
 /.cache
+/.ropeproject
+/Donald.egg-info
 /_
 /build
 /dist
 /env
 /todo.txt
+__pycache__

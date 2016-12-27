@@ -1,7 +1,8 @@
 import asyncio
-import pytest
 import threading
 import time
+
+import pytest
 
 from donald import Donald
 
@@ -25,6 +26,10 @@ def ping():
     print('Pong', time.time())
 
 
+def exception():
+    raise Exception('Test exception.')
+
+
 @pytest.mark.asyncio
 async def test_donald():
     donald = Donald(num_threads=3, loglevel='debug')
@@ -44,4 +49,3 @@ async def test_donald():
 
     result = await donald.queue.submit(coro, 3)
     assert result == 'coro3'
-

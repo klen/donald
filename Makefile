@@ -62,8 +62,13 @@ upload: clean
 #  Development
 # =============
 
-$(VIRTUAL_ENV): $(CURDIR)/requirements-tests.txt $(CURDIR)/requirements.txt
+$(VIRTUAL_ENV): $(CURDIR)/requirements.txt
 	$(VIRTUAL_ENV)/bin/pip install -r requirements-tests.txt
+	touch $(VIRTUAL_ENV)
+
+$(VIRTUAL_ENV)/bin/py.test: $(VIRTUAL_ENV) $(CURDIR)/requirements-tests.txt
+	$(VIRTUAL_ENV)/bin/pip install -r requirements-tests.txt
+	touch $(VIRTUAL_ENV)/bin/py.test
 
 
 run: $(VIRTUAL_ENV)
@@ -74,5 +79,5 @@ rabbit:
 
 .PHONY: t test
 # target: test - Runs tests
-t test: $(VIRTUAL_ENV)
-	@py.test -xs tests
+t test: $(VIRTUAL_ENV)/bin/py.test
+	@$(VIRTUAL_ENV)/bin/py.test -xs tests
