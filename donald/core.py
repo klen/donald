@@ -1,6 +1,7 @@
 """Main Donald class."""
 
 import asyncio
+import sys
 import atexit
 import datetime
 import random
@@ -155,18 +156,18 @@ class Donald(AsyncMixin, metaclass=Singleton):
                 try:
                     yield from self.submit(func, *args, **kwargs)
                 except Exception as exc:  # noqa
-                    self.handle_exc(exc, func, *args, **kwargs)
+                    self.handle_exc(sys.exc_info(), exc, func, *args, **kwargs)
                 yield from asyncio.sleep(interval, loop=self._loop)
 
         logger.info('Schedule %r', func)
         self._schedules.append(asyncio.ensure_future(scheduler(), loop=self._loop))
 
-    def handle_exc(self, exc, func, *args, **kwargs):
+    def handle_exc(self, info, exc, func, *args, **kwargs):
         """Handle exception for periodic tasks."""
-        logger.error('Unhandled exception for %r', func)
-        logger.exception(exc)
+        info = sys.exc_info()
+        logger.error('Unhandled exception for %r', func, exc_info=info)
         for handler in self._exc_handlers:
-            call_with_loop(self._loop, handler, exc, *args, **kwargs)
+            call_with_loop(self._loop, handler, info, exc, *args, **kwargs)
 
     def __str__(self):
         """String representation."""

@@ -1,5 +1,6 @@
 """AMPQ support."""
 import asyncio
+import sys
 import pickle
 import uuid
 from importlib import import_module
@@ -133,7 +134,7 @@ class Queue(AsyncMixin):
         try:
             result = yield from self._core.submit(func, *args, **kwargs)
         except Exception as exc:  # noqa
-            return self._core.handle_exc(exc, func, *args, **kwargs)
+            return self._core.handle_exc(sys.exc_info(), exc, func, *args, **kwargs)
 
         logger.info('Received result %r from message %r', result, properties.message_id)
         if channel:
