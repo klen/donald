@@ -25,13 +25,24 @@ def remote(name='world'):
     return 42
 
 
-donald = Donald()
-donald.schedule(1, ping)
+def exception():
+    raise Exception('LA LA LA LA')
 
-#  @asyncio.coroutine
-#  def start():
-    #  donald = Donald(num_threads=3)
-    #  yield from donald.start()
+
+def job(func):
+    donald.queue.submit(func)
+
+
+donald = Donald()
+
+@asyncio.coroutine
+def start():
+    donald = Donald(num_threads=3)
+    yield from donald.start()
+
+    donald.schedule(2, job, ping)
+    donald.schedule(10, job, exception)
+    donald.queue.start()
 
     #  donald.schedule(1, ping)
 
@@ -52,7 +63,8 @@ donald.schedule(1, ping)
     #  return results
 
 
-#  loop = asyncio.get_event_loop()
-#  results = loop.run_until_complete(start())
+loop = asyncio.get_event_loop()
+results = loop.run_until_complete(start())
+loop.run_forever()
 
 #  print(111, results)

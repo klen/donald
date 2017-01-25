@@ -133,10 +133,11 @@ class Queue(AsyncMixin):
 
         try:
             result = yield from self._core.submit(func, *args, **kwargs)
+            logger.info('Received result %r from message %r', result, properties.message_id)
         except Exception as exc:  # noqa
             return self._core.handle_exc(sys.exc_info(), exc, func, *args, **kwargs)
+        finally:
+            if channel:
+                yield from channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
 
-        logger.info('Received result %r from message %r', result, properties.message_id)
-        if channel:
-            yield from channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
         return result
