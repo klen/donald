@@ -1,7 +1,7 @@
 import asyncio
 import threading
 
-from donald.core import Donald
+from donald import Donald, crontab
 
 
 counter = 0
@@ -35,14 +35,15 @@ def job(func):
 
 donald = Donald()
 
+
 @asyncio.coroutine
 def start():
-    donald = Donald(num_threads=3)
+    donald = Donald(num_threads=1)
     yield from donald.start()
 
-    donald.schedule(2, job, ping)
+    donald.schedule(crontab('* * * * *'), ping)
     donald.schedule(10, job, exception)
-    donald.queue.start()
+    #  donald.queue.start()
 
     #  donald.schedule(1, ping)
 

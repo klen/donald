@@ -13,7 +13,7 @@ handle.setFormatter(logging.Formatter('%(thread)d: %(message)s'))
 logger.addHandler(handle)
 
 
-from .core import Donald # noqa
+from .core import Donald, CronTab as crontab # noqa
 
 
 __version__ = "0.1.3"

@@ -1,10 +1,12 @@
 """Main Donald class."""
 
 import asyncio
-import sys
 import atexit
 import datetime
 import random
+import sys
+
+from crontab import CronTab
 
 from . import logger, AIOFALSE
 from .queue import Queue
@@ -134,9 +136,11 @@ class Donald(AsyncMixin, metaclass=Singleton):
     def _submit(self, func, *args, **kwargs):
         """Wait for free worker and submit to it."""
         if len(self._waiters) == len(self._threads):
+            logger.info('Wait for worker.')
             yield from asyncio.wait(
                 self._waiters, loop=self._loop, return_when=asyncio.FIRST_COMPLETED)
-        worker = random.choice(self._threads)
+        workers = [t for t in self._threads if id(t) not in self._waiters]
+        worker = random.choice(workers)
         future, waiter = map(self.future, worker.submit(func, *args, **kwargs))
         self._waiters[id(worker)] = waiter
         waiter.add_done_callback(lambda f: self._waiters.pop(id(worker), None))
@@ -145,10 +149,13 @@ class Donald(AsyncMixin, metaclass=Singleton):
     def schedule(self, interval, func, *args, **kwargs):
         """Run given func/coro periodically."""
         if isinstance(interval, datetime.timedelta):
-            interval = interval.total_seconds()
+            timer = interval.total_seconds
 
-        if not isinstance(interval, float):
-            interval = float(interval)
+        elif isinstance(interval, CronTab):
+            timer = interval.next
+
+        elif not isinstance(interval, float):
+            timer = lambda: float(interval) # noqa
 
         @asyncio.coroutine
         def scheduler():
@@ -157,7 +164,9 @@ class Donald(AsyncMixin, metaclass=Singleton):
                     yield from self.submit(func, *args, **kwargs)
                 except Exception as exc:  # noqa
                     self.handle_exc(sys.exc_info(), exc, func, *args, **kwargs)
-                yield from asyncio.sleep(interval, loop=self._loop)
+                sleep = timer()
+                logger.info('Next %r in %d s', func.__name__, sleep)
+                yield from asyncio.sleep(sleep, loop=self._loop)
 
         logger.info('Schedule %r', func)
         self._schedules.append(asyncio.ensure_future(scheduler(), loop=self._loop))

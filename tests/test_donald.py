@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from donald import Donald
+from donald import Donald, crontab
 
 
 async def coro(num=0):
@@ -35,6 +35,7 @@ async def test_donald():
     donald = Donald(num_threads=3, loglevel='debug')
     await donald.start()
     donald.schedule(.2, ping)
+    donald.schedule(crontab('* * * * *'), ping)
     results = await asyncio.gather(*[
         donald.submit(coro()),
         donald.submit(coro, 1),

@@ -42,7 +42,7 @@ class AsyncThreadWorker(AsyncMixin, threading.Thread):
         if not self.is_running():
             raise RuntimeError('Worker loop is stopped.')
 
-        logger.info('Submit task with worker: %d' % id(self))
+        logger.info('Submit %r with worker: %d', func.__name__, id(self))
         job = call_with_loop(self._loop, func, *args, **kwargs)
         waiter = Future()
         self._loop.call_soon(
