@@ -138,9 +138,9 @@ class Donald(AsyncMixin, metaclass=Singleton):
         workers = self._threads
         if len(self._waiters) == len(self._threads):
             logger.info('Wait for worker.')
-            done, self._waiters = yield from asyncio.wait(
+            _, self._waiters = yield from asyncio.wait(
                 self._waiters, loop=self._loop, return_when=asyncio.FIRST_COMPLETED)
-            waiters = [w.worker for w in self._waiters]
+            waiters = set(w.worker for w in self._waiters)
             workers = [t for t in self._threads if id(t) not in waiters]
 
         worker = random.choice(workers)
@@ -163,13 +163,13 @@ class Donald(AsyncMixin, metaclass=Singleton):
         @asyncio.coroutine
         def scheduler():
             while self.is_running():
+                sleep = timer()
+                logger.info('Next %r in %d s', func.__name__, sleep)
+                yield from asyncio.sleep(sleep, loop=self._loop)
                 try:
                     yield from self.submit(func, *args, **kwargs)
                 except Exception as exc:  # noqa
                     self.handle_exc(sys.exc_info(), exc, func, *args, **kwargs)
-                sleep = timer()
-                logger.info('Next %r in %d s', func.__name__, sleep)
-                yield from asyncio.sleep(sleep, loop=self._loop)
 
         logger.info('Schedule %r', func)
         self._schedules.append(asyncio.ensure_future(scheduler(), loop=self._loop))
