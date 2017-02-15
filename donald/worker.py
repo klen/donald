@@ -45,8 +45,7 @@ class AsyncThreadWorker(AsyncMixin, threading.Thread):
         logger.info('Submit %r with worker: %d', func.__name__, id(self))
         job = call_with_loop(self._loop, func, *args, **kwargs)
         waiter = Future()
-        self._loop.call_soon(
-            asyncio.futures._set_result_unless_cancelled, waiter, True)
+        self._loop.call_soon(asyncio.futures._set_result_unless_cancelled, waiter, True)
         return job, waiter
 
 

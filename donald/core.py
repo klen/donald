@@ -52,7 +52,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self._loop = loop or asyncio.get_event_loop()
         num_threads = 1 if self.params.num_threads < 1 else self.params.num_threads
         self._threads = tuple(AsyncThreadWorker() for _ in range(num_threads))
-        self._waiters = {}
+        self._waiters = set()
         self._schedules = []
         self._closing = False
         self._started = False
@@ -135,15 +135,18 @@ class Donald(AsyncMixin, metaclass=Singleton):
     @asyncio.coroutine
     def _submit(self, func, *args, **kwargs):
         """Wait for free worker and submit to it."""
+        workers = self._threads
         if len(self._waiters) == len(self._threads):
             logger.info('Wait for worker.')
-            yield from asyncio.wait(
-                self._waiters.values(), loop=self._loop, return_when=asyncio.FIRST_COMPLETED)
-        workers = [t for t in self._threads if id(t) not in self._waiters]
+            done, self._waiters = yield from asyncio.wait(
+                self._waiters, loop=self._loop, return_when=asyncio.FIRST_COMPLETED)
+            waiters = [w.worker for w in self._waiters]
+            workers = [t for t in self._threads if id(t) not in waiters]
+
         worker = random.choice(workers)
         future, waiter = map(self.future, worker.submit(func, *args, **kwargs))
-        self._waiters[id(worker)] = waiter
-        waiter.add_done_callback(lambda f: self._waiters.pop(id(worker), None))
+        waiter.worker = id(worker)
+        self._waiters.add(waiter)
         return (yield from future)
 
     def schedule(self, interval, func, *args, **kwargs):
