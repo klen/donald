@@ -138,7 +138,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
         if len(self._waiters) == len(self._threads):
             logger.info('Wait for worker.')
             yield from asyncio.wait(
-                self._waiters, loop=self._loop, return_when=asyncio.FIRST_COMPLETED)
+                self._waiters.values(), loop=self._loop, return_when=asyncio.FIRST_COMPLETED)
         workers = [t for t in self._threads if id(t) not in self._waiters]
         worker = random.choice(workers)
         future, waiter = map(self.future, worker.submit(func, *args, **kwargs))
