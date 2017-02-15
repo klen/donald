@@ -16,7 +16,7 @@ logger.addHandler(handle)
 from .core import Donald, CronTab as crontab # noqa
 
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 __project__ = "Donald"
 __author__ = "Kirill Klenov <horneds@gmail.com>"
 __license__ = "BSD"
