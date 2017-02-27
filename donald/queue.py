@@ -7,7 +7,7 @@ from importlib import import_module
 
 import aioamqp
 
-from . import logger, AIOFALSE
+from . import logger, AIOFALSE, AIOTRUE
 from .utils import AsyncMixin, AttrDict
 
 
@@ -44,7 +44,7 @@ class Queue(AsyncMixin):
     def start(self, listen=True):
         """Connect to message queue."""
         if self._core.params.always_eager:
-            return False
+            return AIOTRUE
         self._started = True
         return asyncio.ensure_future(self.connect(listen), loop=self.loop)
 
@@ -88,7 +88,7 @@ class Queue(AsyncMixin):
     @asyncio.coroutine
     def stop(self):
         """Stop listeners."""
-        if not self.is_connected() or self.is_closed():
+        if not self.is_connected() or self.is_closed() or not self._started:
             return False
 
         logger.warning('Disconnect from queue.')

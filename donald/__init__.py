@@ -5,6 +5,8 @@ import asyncio
 
 AIOFALSE = asyncio.Future()
 AIOFALSE.set_result(False)
+AIOTRUE = asyncio.Future()
+AIOTRUE.set_result(True)
 
 
 logger = logging.getLogger(__name__)

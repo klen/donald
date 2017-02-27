@@ -8,7 +8,7 @@ import sys
 
 from crontab import CronTab
 
-from . import logger, AIOFALSE
+from . import logger, AIOFALSE, AIOTRUE
 from .queue import Queue
 from .utils import AsyncMixin, AttrDict, Singleton, FileLock, FileLocked
 from .worker import AsyncThreadWorker, call_with_loop
@@ -71,6 +71,9 @@ class Donald(AsyncMixin, metaclass=Singleton):
         if loop is not None:
             self._loop = self.queue._loop = loop
 
+        if self.params.always_eager:
+            return AIOTRUE
+
         if self.params.filelock:
             try:
                 self._lock.acquire()
@@ -94,10 +97,10 @@ class Donald(AsyncMixin, metaclass=Singleton):
 
         :returns: A future
         """
-        # Stop queue
         if self.is_closed():
             return AIOFALSE
 
+        # Stop queue
         tasks = [asyncio.ensure_future(self.queue.stop(), loop=self._loop)]
 
         if self._closing or not self._started:
