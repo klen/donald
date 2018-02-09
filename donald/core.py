@@ -158,7 +158,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
             timer = interval.total_seconds
 
         elif isinstance(interval, CronTab):
-            timer = interval.next
+            timer = lambda: interval.next(default_utc=True)
 
         elif not isinstance(interval, float):
             timer = lambda: float(interval) # noqa

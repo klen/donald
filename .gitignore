@@ -1,4 +1,5 @@
 /.cache
+/.pytest_cache
 /.ropeproject
 /Donald.egg-info
 /_
