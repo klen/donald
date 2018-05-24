@@ -58,18 +58,23 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self._started = False
         self._lock = FileLock(self.params.filelock)
         self._exc_handlers = []
+        self._runner = None
 
         self.queue = Queue(self, loop=self._loop, **self.params.queue)
         self.params.always_eager = self.params.always_eager or not len(self._threads)
+
+    def init_loop(self, loop):
+        """Bind to given loop."""
+        if loop and not self._started:
+            self._loop = self.queue._loop = loop
 
     def start(self, loop=None):
         """Start workers.
 
         :returns: A coroutine
         """
-        logger.warning('Start Donald')
-        if loop is not None:
-            self._loop = self.queue._loop = loop
+        logger.info('Start Donald')
+        self.init_loop(loop)
 
         if self.params.always_eager:
             return AIOTRUE
@@ -111,8 +116,12 @@ class Donald(AsyncMixin, metaclass=Singleton):
         if self.params.filelock:
             self._lock.release()
 
+        # Stop schedules
         for task in self._schedules:
             task.cancel()
+
+        # Stop runner if exists
+        self._runner and self._runner.cancel()
 
         # Stop workers
         tasks += [
@@ -122,6 +131,18 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self._closing = True
 
         return asyncio.wait(tasks, loop=self._loop)
+
+    @asyncio.coroutine
+    def run(self, sleep=1):
+        """Run the Donald untill stopped."""
+        @asyncio.coroutine
+        def runner():
+            while self.is_running():
+                logger.info('Donald is running.')
+                yield from asyncio.sleep(sleep, loop=self._loop)
+
+        self._runner = asyncio.ensure_future(runner(), loop=self._loop)
+        return self._runner
 
     def future(self, fut):
         """Just a shortcut on asyncio.wrap_future."""
