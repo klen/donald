@@ -15,7 +15,6 @@ from .worker import AsyncThreadWorker, call_with_loop
 
 
 class Donald(AsyncMixin, metaclass=Singleton):
-
     """I'am on Donald."""
 
     defaults = dict(
@@ -138,7 +137,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
         @asyncio.coroutine
         def runner():
             while self.is_running():
-                logger.info('Donald is running.')
+                logger.debug('Donald is running.')
                 yield from asyncio.sleep(sleep, loop=self._loop)
 
         self._runner = asyncio.ensure_future(runner(), loop=self._loop)
