@@ -23,28 +23,34 @@ class Queue(AsyncMixin):
         virtualhost='/',
     )
 
-    def __init__(self, core, loop=None, exchange='donald', queue='donald', **params):
+    def __init__(self, core, exchange='donald', queue='donald', **params):
         """Initialize the queue."""
         self.params = self.defaults
         self.params.update(params)
 
         self._core = core
-        self._loop = loop or asyncio.get_event_loop()
         self._queue = queue
         self._transport = None
         self._protocol = None
         self._channel = None
         self._started = False
         self._connected = False
+        self._loop = None
+
+    def init_loop(self, loop):
+        """Bind to given loop."""
+        if not self._started:
+            self._loop = loop or asyncio.get_event_loop()
 
     def is_connected(self):
         """Check that the queue is connected."""
         return self._connected
 
-    def start(self, listen=True):
+    def start(self, listen=True, loop=None):
         """Connect to message queue."""
         if self._core.params.always_eager:
             return AIOTRUE
+        self.init_loop(loop)
         self._started = True
         return asyncio.ensure_future(self.connect(listen), loop=self.loop)
 

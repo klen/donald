@@ -39,7 +39,7 @@ class Donald(AsyncMixin, metaclass=Singleton):
 
     )
 
-    def __init__(self, loop=None, **params):
+    def __init__(self, **params):
         """Initialize donald parameters."""
         self.params = AttrDict(self.defaults)
         self.params.update(params)
@@ -47,8 +47,6 @@ class Donald(AsyncMixin, metaclass=Singleton):
         logger.setLevel(self.params['loglevel'].upper())
         logger.propagate = False
 
-        # Base loop and queue
-        self._loop = loop or asyncio.get_event_loop()
         num_threads = 1 if self.params.num_threads < 1 else self.params.num_threads
         self._threads = tuple(AsyncThreadWorker() for _ in range(num_threads))
         self._waiters = set()
@@ -58,14 +56,16 @@ class Donald(AsyncMixin, metaclass=Singleton):
         self._lock = FileLock(self.params.filelock)
         self._exc_handlers = []
         self._runner = None
+        self._loop = None
 
-        self.queue = Queue(self, loop=self._loop, **self.params.queue)
+        self.queue = Queue(self, **self.params.queue)
         self.params.always_eager = self.params.always_eager or not len(self._threads)
 
     def init_loop(self, loop):
         """Bind to given loop."""
-        if loop and not self._started:
-            self._loop = self.queue._loop = loop
+        if not self._started:
+            self._loop = loop or asyncio.get_event_loop()
+            self.queue.init_loop(loop)
 
     def start(self, loop=None):
         """Start workers.
