@@ -2,7 +2,7 @@
 /.pytest_cache
 /.ropeproject
 /Donald.egg-info
-/_
+/.ignore
 /build
 /dist
 /env
