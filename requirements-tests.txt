@@ -1,6 +1,4 @@
 -r requirements.txt
 -e .
 
-ipdb    >= 0.10.1
 pytest-asyncio
-pytest-pythonpath

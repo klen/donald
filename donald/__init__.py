@@ -11,7 +11,7 @@ AIOTRUE.set_result(True)
 
 logger = logging.getLogger(__name__)
 handle = logging.StreamHandler()
-handle.setFormatter(logging.Formatter('%(created)d [%(thread)d]: %(message)s'))
+handle.setFormatter(logging.Formatter('%(created)d %(levelname)-8s [%(process)d]: %(message)s'))
 logger.addHandler(handle)
 
 

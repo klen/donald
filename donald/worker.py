@@ -1,62 +1,82 @@
-import asyncio
-import threading
+"""Do the work."""
+
+import asyncio as aio
+import multiprocessing as mp
+from functools import partial
+from queue import Empty
 
 from . import logger
-from .utils import AsyncMixin, CallableFuture, Future
+from .utils import repr_func, create_task
 
 
-class AsyncThreadWorker(AsyncMixin, threading.Thread):
+class ProcessWorker(mp.Process):
 
-    def __init__(self, *args, **kwargs):
-        super(AsyncThreadWorker, self).__init__(*args, **kwargs)
-        self._loop = None
+    """Put a job into a separate process."""
 
-    def start(self):
-        self._future = Future()
-        super(AsyncThreadWorker, self).start()
-        return self._future
+    def __init__(self, rx, tx, **params):
+        """Initialize the worker."""
+        super(ProcessWorker, self).__init__()
+        self.rx = rx
+        self.tx = tx
+        self.params = params
+        self.started = mp.Event()
+        self.stopped = mp.Event()
 
     def run(self):
-        logger.info('Start loop for worker: %d' % id(self))
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-        self._loop.call_soon_threadsafe(
-            asyncio.futures._set_result_unless_cancelled, self._future, True)
-        self._loop.run_forever()
+        """Wait for a command and do the job."""
+        logger.setLevel(self.params['loglevel'].upper())
+        aio.run(self.runner())
 
-    def stop(self):
-        if self.is_closed():
-            fut = Future()
-            fut.set_result(False)
-            return fut
-        logger.info('Stop loop for worker: %d' % id(self))
-        for task in asyncio.Task.all_tasks(loop=self._loop):
+    async def runner(self):
+        """Listen for tasks and run."""
+        logger.info('Start worker')
+        await self.handle('on_start')
+        self.started.set()
+
+        while True:
+            if self.stopped.is_set():
+                break
+
+            tasks = aio.all_tasks()
+            if len(tasks) - 1 >= self.params['max_tasks_per_worker']:
+                await aio.sleep(.01)
+
+            try:
+                ident, func, args, kwargs = self.rx.get(block=False)
+                logger.info("Run: %s", repr_func(func, args, kwargs))
+                task = create_task(func, args, kwargs)
+                task.add_done_callback(partial(self.done, ident))
+
+            except Empty:
+                pass
+
+            await aio.sleep(0)
+
+        # Stop the runner
+        logger.info('Stop worker')
+        await self.handle('on_stop')
+
+        tasks = [task for task in aio.all_tasks() if task is not aio.current_task()]
+        if tasks:
+            await aio.sleep(1)
+
+        for task in tasks:
             task.cancel()
 
-        fut = CallableFuture(self._loop.stop)
-        self._loop.call_soon_threadsafe(fut)
-        return fut
+    def done(self, ident, task):
+        """Send the task's result back to main."""
+        try:
+            res = task.result()
+        except BaseException as exc:
+            res = exc
 
-    def submit(self, func, *args, **kwargs):
-        """Submit function/coroutine to current loop."""
-        if not self.is_running():
-            raise RuntimeError('Worker loop is stopped.')
+        self.tx.put((ident, res))
 
-        logger.info('Submit %r with worker: %d', func.__name__, id(self))
-        job = call_with_loop(self._loop, func, *args, **kwargs)
-        waiter = Future()
-        self._loop.call_soon(asyncio.futures._set_result_unless_cancelled, waiter, True)
-        return job, waiter
-
-
-def call_with_loop(loop, func, *args, **kwargs):
-    """Call given coro/function with given loop."""
-    if asyncio.iscoroutine(func):
-        return asyncio.run_coroutine_threadsafe(func, loop)
-
-    if asyncio.iscoroutinefunction(func):
-        return asyncio.run_coroutine_threadsafe(func(*args, **kwargs), loop)
-
-    fut = CallableFuture(func, *args, **kwargs)
-    loop.call_soon_threadsafe(fut)
-    return fut
+    async def handle(self, etype):
+        """Run handlers."""
+        for handler in self.params.get(etype, []):
+            try:
+                await create_task(handler, [], {})
+            except Exception as exc:
+                logger.error("Error: %s", etype.upper())
+                logger.exception(exc)

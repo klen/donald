@@ -13,21 +13,13 @@ listen AMQP queues.
 
 .. _badges:
 
-.. image:: http://img.shields.io/travis/klen/donald.svg?style=flat-square
-    :target: http://travis-ci.org/klen/donald
-    :alt: Build Status
+.. image:: https://github.com/klen/donald/workflows/tests/badge.svg
+    :target: https://github.com/klen/donald/actions
+    :alt: Tests Status
 
-.. image:: http://img.shields.io/coveralls/klen/donald.svg?style=flat-square
-    :target: https://coveralls.io/r/klen/pewee_migrate
-    :alt: Coverals
-
-.. image:: http://img.shields.io/pypi/v/donald.svg?style=flat-square
-    :target: https://pypi.python.org/pypi/donald
-    :alt: Version
-
-.. image:: http://img.shields.io/pypi/dm/donald.svg?style=flat-square
-    :target: https://pypi.python.org/pypi/donald
-    :alt: Downloads
+.. image:: https://img.shields.io/pypi/v/donald
+    :target: https://pypi.org/project/donald/
+    :alt: PYPI Version
 
 .. _contents:
 
@@ -38,7 +30,7 @@ listen AMQP queues.
 Requirements
 =============
 
-- python 3.3+
+- python 3.8+
 
 .. _installation:
 
@@ -59,22 +51,47 @@ From shell: ::
     $ donald --help
 
 
-From synchronous python code: ::
-
-    donald = Donald()
-    donald.start()
-
-    donald.submit(<coro or function>)
-    donald.schedule(<seconds>, <coro or function>)
-
-
 From asynchronous python code: ::
 
-    donald = Donald()
+    # Init Donald
+    donald = Donald(
+        # Params (default values)
+        # -----------------------
 
+        # Run tasks imediatelly in the same process/thread
+        fake_mode=False,
+
+        # Number of workers
+        num_workers=multiprocessing.cpu_count() - 1,
+
+        # Maximum concurent tasks per worker
+        max_tasks_per_worker=100,
+
+        # Ensure that the Donald starts only once (set to filename to lock)
+        filelock=None,
+
+        # logging level
+        loglevel='INFO',
+
+        # AMQP params
+        queue={
+            'exchange': 'donald',
+            'queue': 'donald',
+        }
+    )
+
+    # Start the donald
     await donald.start()
-    result = await donald.submit(<coro or function>)
-    await donald.schedule(<seconds>, <coro or function>)
+
+    # ...
+
+    result = await donald.submit(corofunction or function, *args, **kwargs)
+    await donald.schedule(crontab_string | seconds_float | datetime_timedelta, corofunction or function, *args, **kwargs)
+
+    # ...
+
+    # Stop the donald
+    await donald.stop()
 
 Listen AMQP
 -----------
@@ -119,7 +136,7 @@ Contributors
 .. _license:
 
 License
-=======
+========
 
 Licensed under a `BSD license`_.
 
@@ -127,5 +144,3 @@ Licensed under a `BSD license`_.
 
 .. _BSD license: http://www.linfo.org/bsdlicense.html
 .. _klen: https://klen.github.io/
-.. _Flask: http://flask.pocoo.org/
-.. _Flask-PW: https://github.com/klen/flask-pw

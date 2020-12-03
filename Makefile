@@ -81,4 +81,4 @@ rabbit:
 .PHONY: t test
 # target: test - Runs tests
 t test: $(VIRTUAL_ENV)/bin/py.test
-	@$(VIRTUAL_ENV)/bin/py.test -xs tests
+	@$(VIRTUAL_ENV)/bin/py.test tests

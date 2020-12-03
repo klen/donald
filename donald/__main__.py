@@ -1,12 +1,16 @@
-import click
+"""CLI Support."""
+
 import asyncio
-from donald import Donald
 from importlib import import_module
 
+import click
 
-@asyncio.coroutine
-def run_donald(donald, listen=None, module=None):
-    yield from donald.start()
+from donald import Donald
+
+
+async def run_donald(donald, listen=None, module=None):
+    """Start donald and import dependencies."""
+    await donald.start()
     if module:
         try:
             click.echo('Import module: %s' % module)
@@ -22,7 +26,7 @@ def run_donald(donald, listen=None, module=None):
 @click.option('--module', help="Load module.")
 def main(workers=4, loglevel='info', **kw):
     """Run Donald server."""
-    donald = Donald(num_threads=workers, loglevel=loglevel)
+    donald = Donald(num_workers=workers, loglevel=loglevel)
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(run_donald(donald, **kw))
