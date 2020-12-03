@@ -51,7 +51,9 @@ From shell: ::
     $ donald --help
 
 
-From asynchronous python code: ::
+From asynchronous python code:
+
+.. code:: python
 
     # Init Donald
     donald = Donald(
@@ -96,7 +98,9 @@ From asynchronous python code: ::
 Listen AMQP
 -----------
 
-AMQP: ::
+AMQP:
+
+.. code:: python
 
     donald = Donald()
 
