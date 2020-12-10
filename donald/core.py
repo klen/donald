@@ -86,7 +86,7 @@ class Donald(AsyncMixin):
 
         :returns: A coroutine
         """
-        logger.warning('Start Donald')
+        logger.warning('Start Donald: loop %s', id(aio.get_event_loop()))
         self.init_loop(loop)
 
         if self.params.fake_mode:
@@ -228,13 +228,16 @@ class Donald(AsyncMixin):
             await aio.sleep(timer)
 
     def on_start(self, func):
+        """Register start handler."""
         self.params.on_start.append(func)
         return func
 
     def on_stop(self, func):
+        """Register stop handler."""
         self.params.on_stop.append(func)
         return func
 
     def on_exception(self, func):
+        """Register exception handler."""
         self.params.on_exception.append(func)
         return func

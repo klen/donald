@@ -26,13 +26,11 @@ class ProcessWorker(mp.Process):
     def run(self):
         """Wait for a command and do the job."""
         logger.setLevel(self.params['loglevel'].upper())
-        logger.info('pre loop %s', id(aio.get_event_loop()))
         aio.run(self.runner())
 
     async def runner(self):
         """Listen for tasks and run."""
-        logger.info('Start worker')
-        logger.info('loop %s', id(aio.get_event_loop()))
+        logger.info('Start worker: loop %s', id(aio.get_event_loop()))
         await self.handle('on_start')
         self.started.set()
 
