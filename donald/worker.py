@@ -22,6 +22,7 @@ class ProcessWorker(mp.Process):
         self.params = params
         self.started = mp.Event()
         self.stopped = mp.Event()
+        self.tasks = 0
 
     def run(self):
         """Wait for a command and do the job."""
@@ -38,20 +39,18 @@ class ProcessWorker(mp.Process):
             if self.stopped.is_set():
                 break
 
-            tasks = aio.all_tasks()
-            if len(tasks) - 1 >= self.params['max_tasks_per_worker']:
-                await aio.sleep(.01)
+            if self.tasks < self.params['max_tasks_per_worker']:
+                try:
+                    ident, func, args, kwargs = self.rx.get(block=False)
+                    logger.info("Run: %s", repr_func(func, args, kwargs))
+                    task = create_task(func, args, kwargs)
+                    task.add_done_callback(partial(self.done, ident))
+                    self.tasks += 1
 
-            try:
-                ident, func, args, kwargs = self.rx.get(block=False)
-                logger.info("Run: %s", repr_func(func, args, kwargs))
-                task = create_task(func, args, kwargs)
-                task.add_done_callback(partial(self.done, ident))
+                except Empty:
+                    pass
 
-            except Empty:
-                pass
-
-            await aio.sleep(0)
+            await aio.sleep(1e-2)
 
         # Stop the runner
         logger.info('Stop worker')
@@ -72,6 +71,9 @@ class ProcessWorker(mp.Process):
             res = exc
             if self.params['on_exception']:
                 aio.create_task(self.handle('on_exception', res, sys.exc_info()))
+
+        finally:
+            self.tasks -= 1
 
         self.tx.put((ident, res))
 
