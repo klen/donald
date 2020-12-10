@@ -21,7 +21,6 @@ class ProcessWorker(mp.Process):
         self.tx = tx
         self.params = params
         self.started = mp.Event()
-        self.stopped = mp.Event()
         self.tasks = 0
 
     def run(self):
@@ -36,12 +35,14 @@ class ProcessWorker(mp.Process):
         self.started.set()
 
         while True:
-            if self.stopped.is_set():
-                break
 
             if self.tasks < self.params['max_tasks_per_worker']:
                 try:
-                    ident, func, args, kwargs = self.rx.get(block=False)
+                    message = self.rx.get(block=False)
+                    if message is None:
+                        break
+
+                    ident, func, args, kwargs = message
                     logger.info("Run: %s", repr_func(func, args, kwargs))
                     task = create_task(func, args, kwargs)
                     task.add_done_callback(partial(self.done, ident))

@@ -146,7 +146,9 @@ class Donald(AsyncMixin):
 
         # Stop workers
         for wrk in self.workers:
-            wrk.stopped.set()
+            self.rx.put(None)
+
+        for wrk in self.workers:
             wrk.join(1)
             wrk.terminate()
 
