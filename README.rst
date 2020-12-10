@@ -95,20 +95,32 @@ From asynchronous python code:
     # Stop the donald
     await donald.stop()
 
-Listen AMQP
------------
-
-AMQP:
+Connect and receive tasks using AMQP
+------------------------------------
 
 .. code:: python
 
     donald = Donald()
 
     await donald.start()
+    await donald.queue.start()
+
+    # ...
+
+
+    # Stop the donald
+    await donald.queue.stop()
+    await donald.stop()
+
+Submit tasks to AMQP
+--------------------
+
+.. code::
 
     # Send task to queue
-    await donald.queue.start(False)
     await donald.queue.submit(<coro or func>, *args, **kwargs)
+
+    # ...
 
     # Listen tasks
     await donald.queue.listen()

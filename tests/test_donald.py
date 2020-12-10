@@ -9,6 +9,7 @@ async def donald():
     from donald import Donald
 
     donald = Donald(num_workers=2, loglevel='DEBUG')
+
     await donald.start()
     yield donald
     await donald.stop()
@@ -35,6 +36,7 @@ async def test_base(donald):
 
 @pytest.mark.asyncio
 async def test_exception(donald):
+
     with pytest.raises(Exception):
         await donald.submit(tasks.exception)
 
