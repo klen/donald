@@ -1,6 +1,7 @@
 """Do the work."""
 
 import asyncio as aio
+import sys
 import multiprocessing as mp
 from functools import partial
 from queue import Empty
@@ -15,7 +16,7 @@ class ProcessWorker(mp.Process):
 
     def __init__(self, rx, tx, **params):
         """Initialize the worker."""
-        super(ProcessWorker, self).__init__()
+        mp.Process.__init__(self)
         self.rx = rx
         self.tx = tx
         self.params = params
@@ -25,11 +26,13 @@ class ProcessWorker(mp.Process):
     def run(self):
         """Wait for a command and do the job."""
         logger.setLevel(self.params['loglevel'].upper())
+        logger.info('pre loop %s', id(aio.get_event_loop()))
         aio.run(self.runner())
 
     async def runner(self):
         """Listen for tasks and run."""
         logger.info('Start worker')
+        logger.info('loop %s', id(aio.get_event_loop()))
         await self.handle('on_start')
         self.started.set()
 
@@ -69,14 +72,16 @@ class ProcessWorker(mp.Process):
             res = task.result()
         except BaseException as exc:
             res = exc
+            if self.params['on_exception']:
+                aio.create_task(self.handle('on_exception', res, sys.exc_info()))
 
         self.tx.put((ident, res))
 
-    async def handle(self, etype):
+    async def handle(self, etype, *args, **kwargs):
         """Run handlers."""
         for handler in self.params.get(etype, []):
             try:
-                await create_task(handler, [], {})
+                await create_task(handler, args, kwargs)
             except Exception as exc:
                 logger.error("Error: %s", etype.upper())
                 logger.exception(exc)

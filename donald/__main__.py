@@ -10,13 +10,13 @@ from donald import Donald
 
 async def run_donald(donald, listen=None, module=None):
     """Start donald and import dependencies."""
-    await donald.start()
     if module:
         try:
             click.echo('Import module: %s' % module)
             import_module(module)
         except ImportError:
             click.echo('Invalid module: %s' % module)
+    await donald.start()
 
 
 @click.command()

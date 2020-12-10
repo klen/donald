@@ -20,18 +20,19 @@ class Queue(AsyncMixin):
         login='guest',
         password='guest',
         virtualhost='/',
+        queue='donald',
+        exchange_name='',
     )
 
-    def __init__(self, master, exchange='donald', queue='donald', **params):
+    def __init__(self, master, **params):
         """Initialize the queue."""
         self.params = self.defaults
         self.params.update(params)
         self.master = master
+        self.transport = None
+        self.protocol = None
+        self.channel = None
 
-        self._queue = queue
-        self._transport = None
-        self._protocol = None
-        self._channel = None
         self._started = False
         self._connected = False
         self._loop = None
@@ -45,28 +46,44 @@ class Queue(AsyncMixin):
         """Check that the queue is connected."""
         return self._connected
 
-    def start(self, listen=True, loop=None):
-        """Connect to message queue."""
+    async def start(self, listen=True, loop=None):
+        """Connect and start listen the message queue."""
         if self.master.params.fake_mode:
             return AIOTRUE
+
+        logger.warning('Start Donald Queue')
+
         self.init_loop(loop)
         self._started = True
-        return aio.create_task(self.connect(listen))
 
-    async def connect(self, listen=True):
+        await self.connect()
+        if listen:
+            await self.listen()
+
+    async def stop(self, *args, **kwargs):
+        """Stop listeners."""
+        if not self.is_connected() or self.is_closed() or not self._started:
+            return False
+
+        logger.warning('Stop Donald Queue')
+
+        self._started = False
+        await self.protocol.close()
+        self.transport.close()
+        self._connected = False
+
+    async def connect(self):
         """Connect to queue."""
         logger.warning('Connect to queue: %r', self.params)
         try:
-            self._transport, self._protocol = await aioamqp.connect(
+            self.transport, self.protocol = await aioamqp.connect(
                 loop=self._loop, on_error=self.on_error, **self.params)
-            self._channel = await self._protocol.channel()
+            self.channel = await self.protocol.channel()
 
-            await self._channel.queue_declare(queue_name=self._queue, durable=True)
-            await self._channel.basic_qos(
+            await self.channel.queue_declare(queue_name=self.params['queue'], durable=True)
+            await self.channel.basic_qos(
                 prefetch_count=1, prefetch_size=0, connection_global=False)
             self._connected = True
-            if listen:
-                await self.listen()
 
         except (aioamqp.AmqpClosedConnection, OSError) as exc:
             self.on_error(exc)
@@ -78,7 +95,7 @@ class Queue(AsyncMixin):
             return False
 
         logger.error(exc)
-        self.loop.call_later(1, aio.ensure_future, self.connect())
+        self.loop.call_later(1, aio.create_task, self.connect())
 
     def listen(self):
         """Run tasks from self.queue.
@@ -87,18 +104,7 @@ class Queue(AsyncMixin):
         """
         if self.master.params.fake_mode:
             return AIOFALSE
-        return self._channel.basic_consume(self.callback, queue_name=self._queue)
-
-    async def stop(self):
-        """Stop listeners."""
-        if not self.is_connected() or self.is_closed() or not self._started:
-            return False
-
-        logger.warning('Disconnect from queue.')
-        self._started = False
-        await self._protocol.close()
-        self._transport.close()
-        self._connected = False
+        return self.channel.basic_consume(self.callback, queue_name=self.params['queue'])
 
     def submit(self, func, *args, **kwargs):
         """Submit to the queue."""
@@ -113,8 +119,9 @@ class Queue(AsyncMixin):
         if not self._connected:
             return AIOFALSE
 
-        return aio.create_task(self._channel.basic_publish(
-            payload=payload, exchange_name='', routing_key=self._queue, properties=properties
+        return aio.create_task(self.channel.basic_publish(
+            payload=payload, exchange_name=self.params['exchange_name'],
+            routing_key=self.params['queue'], properties=properties
         ))
 
     async def callback(self, channel, body, envelope, properties):

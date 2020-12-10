@@ -1,7 +1,6 @@
 """Donald Asyncio Tasks."""
 
 import asyncio as aio
-import atexit
 import datetime
 import multiprocessing as mp
 from queue import Empty
@@ -41,6 +40,9 @@ class Donald(AsyncMixin):
         # Stop handlers
         on_stop=[],
 
+        # Exception handlers
+        on_exception=[],
+
         # AMQP params
         queue=dict(
             exchange='donald',
@@ -49,7 +51,7 @@ class Donald(AsyncMixin):
 
     )
 
-    def __init__(self, **params):
+    def __init__(self, on_start=None, on_stop=None, **params):
         """Initialize donald parameters."""
         self.params = AttrDict(self.defaults)
         self.params.update(params)
@@ -57,9 +59,7 @@ class Donald(AsyncMixin):
         logger.setLevel(self.params['loglevel'].upper())
         logger.propagate = False
 
-        ctx = mp.get_context('spawn')
-        self.rx = ctx.Queue()
-        self.tx = ctx.Queue()
+        self.rx = self.tx = None
 
         self.workers = None
         self.listener = None
@@ -67,12 +67,7 @@ class Donald(AsyncMixin):
         self.schedules = []
         self.waiting = {}
         self._loop = None
-        self._stopping = False
         self._started = False
-        self._exc_handlers = []
-
-        self.on_start = self.params.on_start.append
-        self.on_stop = self.params.on_stop.append
 
         self.queue = Queue(self, **self.params.queue)
 
@@ -104,6 +99,10 @@ class Donald(AsyncMixin):
                 logger.warning('Donald is locked. Exit.')
                 return
 
+        ctx = mp.get_context('spawn')
+        self.rx = ctx.Queue()
+        self.tx = ctx.Queue()
+
         self.workers = tuple(
             ProcessWorker(self.rx, self.tx, **self.params)
             for _ in range(max(self.params.num_workers, 1)))
@@ -118,16 +117,12 @@ class Donald(AsyncMixin):
         while not all(wrk.started.is_set() for wrk in self.workers):
             continue
 
-        # Stop on exit
-        atexit.register(
-            lambda: not self.loop.is_closed() and self.loop.run_until_complete(self.stop))
-
         # Mark self started
         self._started = True
 
         return True
 
-    async def stop(self, *args):
+    async def stop(self, *args, **kwargs):
         """Stop workers. Disconnect from queue. Cancel schedules.
 
         The method could be called syncroniously too.
@@ -139,20 +134,15 @@ class Donald(AsyncMixin):
 
         logger.warning('Stop Donald')
 
-        self._stopping = True
-
-        # Stop queue
-        await self.queue.stop()
-
         if self.params.filelock:
             self.lock.release()
+
+        # Stop runner if exists
+        self.listener and self.listener.cancel()
 
         # Stop schedules
         for task in self.schedules:
             task.cancel()
-
-        # Stop runner if exists
-        self.listener and self.listener.cancel()
 
         # Stop workers
         for wrk in self.workers:
@@ -169,17 +159,16 @@ class Donald(AsyncMixin):
 
     async def listen(self):
         """Wait for a result and process."""
-        while not self._stopping:
+        while True:
             if not self.waiting:
                 await aio.sleep(0.01)
                 continue
 
             try:
-                ident, res = self.tx.get(block=False)
+                ident, res, *args = self.tx.get(block=False)
                 fut = self.waiting.pop(ident, None)
                 if fut:
                     if isinstance(res, Exception):
-                        self.handle_exc(res)
                         fut.set_exception(res)
                     else:
                         fut.set_result(res)
@@ -231,7 +220,21 @@ class Donald(AsyncMixin):
         self.schedules.append(schedule)
         return schedule
 
-    def handle_exc(self, exc):
-        """Handle exception for periodic tasks."""
-        for handler in self._exc_handlers:
-            handler(exc)
+    async def run(self, timer=60):
+        """Keep asyncio busy."""
+        logger.info('Donald is running')
+        while self._started:
+            logger.info('Donald is running')
+            await aio.sleep(timer)
+
+    def on_start(self, func):
+        self.params.on_start.append(func)
+        return func
+
+    def on_stop(self, func):
+        self.params.on_stop.append(func)
+        return func
+
+    def on_exception(self, func):
+        self.params.on_exception.append(func)
+        return func
