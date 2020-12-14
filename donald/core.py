@@ -3,6 +3,7 @@
 import asyncio as aio
 import datetime
 import multiprocessing as mp
+import signal
 from queue import Empty
 from functools import wraps
 
@@ -217,6 +218,9 @@ class Donald(AsyncMixin):
             return create_task(func, args, kwargs)
 
         if not self._started:
+            if self.queue._started:
+                return self.queue.submit(func, *args, **kwargs)
+
             raise RuntimeError('Donald is not started yet')
 
         fut = self.loop.create_future()
@@ -276,3 +280,31 @@ class Donald(AsyncMixin):
         """Register exception handler."""
         self.params.on_exception.append(func)
         return func
+
+
+def run_donald(donald, queue=True):
+    """Help to run donald."""
+    loop = aio.get_event_loop()
+
+    async def stop_donald():
+        if queue:
+            await donald.queue.stop()
+        await donald.stop()
+        loop.stop()
+
+    def handle_signal(loop):
+        """Stop donald before exit."""
+        loop.remove_signal_handler(signal.SIGTERM)
+        loop.remove_signal_handler(signal.SIGINT)
+        loop.create_task(stop_donald())
+
+    loop.add_signal_handler(signal.SIGTERM, handle_signal, loop)
+    loop.add_signal_handler(signal.SIGINT, handle_signal, loop)
+    loop.run_until_complete(donald.start())
+    if queue:
+        loop.run_until_complete(donald.queue.start())
+
+    try:
+        loop.run_forever()
+    finally:
+        loop.close()

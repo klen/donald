@@ -15,7 +15,7 @@ handle.setFormatter(logging.Formatter('%(created)d %(levelname)-8s [%(process)d]
 logger.addHandler(handle)
 
 
-from .core import Donald, CronTab as crontab # noqa
+from .core import Donald, CronTab as crontab, run_donald # noqa
 
 
 __version__ = "0.4.1"

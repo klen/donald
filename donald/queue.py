@@ -74,6 +74,9 @@ class Queue(AsyncMixin):
 
     async def connect(self):
         """Connect to queue."""
+        if self._connected:
+            return
+
         logger.warning('Connect to queue: %r', self.params)
         try:
             self.transport, self.protocol = await aioamqp.connect(
