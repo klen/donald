@@ -42,12 +42,22 @@ async def test_exception(donald):
 
 
 @pytest.mark.asyncio
-async def test_schedule(donald):
-    task = donald.schedule(.1, tasks.async_wait, 10)
-    assert task
+async def test_schedule():
+    from donald import Donald
+
+    donald = Donald(num_workers=2, loglevel='DEBUG')
+    assert not donald.schedules
+
+    donald.schedule(.1, 10)(tasks.async_wait)
+    assert donald.schedules
+
+    await donald.start()
     assert not donald.waiting
+
     await aio.sleep(0.3)
     assert len(donald.waiting) == 2
+
+    await donald.stop()
 
 
 @pytest.mark.asyncio

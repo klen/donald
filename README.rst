@@ -82,13 +82,21 @@ From asynchronous python code:
         }
     )
 
+    # Schedule periodic tasks
+    @donald.schedule(crontab_string | seconds_float | datetime_timedelta, *args, **kwargs)
+    async def task(*args, **kwargs):
+        # ...
+
     # Start the donald
     await donald.start()
 
     # ...
 
+    # Submit a task to donald
+    await donald.submit(corofunction or function, *args, **kwargs)
+
+    # Submit and wait for result
     result = await donald.submit(corofunction or function, *args, **kwargs)
-    await donald.schedule(crontab_string | seconds_float | datetime_timedelta, corofunction or function, *args, **kwargs)
 
     # ...
 

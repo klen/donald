@@ -117,6 +117,10 @@ class Donald(AsyncMixin):
         while not all(wrk.started.is_set() for wrk in self.workers):
             continue
 
+        # Start schedulers
+        for idx, schedule in enumerate(self.schedules):
+            self.schedules[idx] = aio.create_task(schedule())
+
         # Mark self started
         self._started = True
 
@@ -138,7 +142,8 @@ class Donald(AsyncMixin):
             self.lock.release()
 
         # Stop runner if exists
-        self.listener and self.listener.cancel()
+        if self.listener:
+            self.listener.cancel()
 
         # Stop schedules
         for task in self.schedules:
@@ -157,13 +162,16 @@ class Donald(AsyncMixin):
 
         self._started = False
 
+        if self.listener and not self.listener.done():
+            await aio.sleep(1e-2)
+
         return True
 
     async def listen(self):
         """Wait for a result and process."""
         while True:
             if not self.waiting:
-                await aio.sleep(0.01)
+                await aio.sleep(1e-2)
                 continue
 
             try:
@@ -200,8 +208,14 @@ class Donald(AsyncMixin):
         self.rx.put((id(fut), func, args, kwargs))
         return fut
 
-    def schedule(self, interval, func, *args, **kwargs):
-        """Run given func/coro periodically."""
+    def schedule(self, interval, *args, **kwargs):
+        """Add func to schedules. Use this as a decorator.
+
+        Run given func/coro periodically.
+        """
+        if callable(interval):
+            raise RuntimeError('@donald.schedule(interval) should be used.')
+
         timer = lambda: float(interval) # noqa
 
         if isinstance(interval, datetime.timedelta):
@@ -210,17 +224,20 @@ class Donald(AsyncMixin):
         elif isinstance(interval, CronTab):
             timer = lambda: interval.next(default_utc=True)  # noqa
 
-        async def scheduler():
-            while True:
-                sleep = max(timer(), 0.01)
-                logger.info('Next %s in %0.2f s', repr_func(func, args, kwargs), sleep)
-                await aio.sleep(sleep)
-                self.submit(func, *args, **kwargs)
+        def wrapper(func):
 
-        logger.info('Schedule %r', repr_func(func, args, kwargs))
-        schedule = aio.create_task(scheduler())
-        self.schedules.append(schedule)
-        return schedule
+            async def scheduler():
+                while True:
+                    sleep = max(timer(), 0.01)
+                    logger.info('Next %s in %0.2f s', repr_func(func, args, kwargs), sleep)
+                    await aio.sleep(sleep)
+                    self.submit(func, *args, **kwargs)
+
+            logger.info('Schedule %r', repr_func(func, args, kwargs))
+            self.schedules.append(scheduler)
+            return func
+
+        return wrapper
 
     async def run(self, timer=60):
         """Keep asyncio busy."""

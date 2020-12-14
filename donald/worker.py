@@ -1,10 +1,11 @@
 """Do the work."""
 
-import asyncio as aio
-import sys
-import multiprocessing as mp
 from functools import partial
 from queue import Empty
+import asyncio as aio
+import multiprocessing as mp
+import signal
+import sys
 
 from . import logger
 from .utils import repr_func, create_task
@@ -22,24 +23,33 @@ class ProcessWorker(mp.Process):
         self.params = params
         self.started = mp.Event()
         self.tasks = 0
+        self.running = False
 
     def run(self):
         """Wait for a command and do the job."""
         logger.setLevel(self.params['loglevel'].upper())
-        aio.run(self.runner())
+        loop = aio.get_event_loop()
+
+        def stop():
+            self.running = False
+
+        loop.add_signal_handler(signal.SIGINT, stop)
+        loop.run_until_complete(self.runner())
 
     async def runner(self):
         """Listen for tasks and run."""
         logger.info('Start worker: loop %s', id(aio.get_event_loop()))
         await self.handle('on_start')
         self.started.set()
+        self.running = True
 
-        while True:
+        while self.running:
 
             if self.tasks < self.params['max_tasks_per_worker']:
                 try:
                     message = self.rx.get(block=False)
                     if message is None:
+                        self.running = False
                         break
 
                     ident, func, args, kwargs = message
