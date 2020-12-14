@@ -4,6 +4,7 @@ import asyncio as aio
 import datetime
 import multiprocessing as mp
 from queue import Empty
+from functools import wraps
 
 from crontab import CronTab
 
@@ -51,6 +52,8 @@ class Donald(AsyncMixin):
 
     )
 
+    crontab = CronTab
+
     def __init__(self, on_start=None, on_stop=None, **params):
         """Initialize donald parameters."""
         self.params = AttrDict(self.defaults)
@@ -81,6 +84,10 @@ class Donald(AsyncMixin):
             self._loop = loop or aio.get_event_loop()
             self.queue.init_loop(loop)
 
+    def is_main(self):
+        """Check that we are inside the main process."""
+        return mp.current_process().name == 'MainProcess'
+
     async def start(self, loop=None):
         """Start workers.
 
@@ -91,6 +98,10 @@ class Donald(AsyncMixin):
 
         if self.params.fake_mode:
             return True
+
+        if not self.is_main():
+            logger.warning('Donald can be started only inside the main process.')
+            return
 
         if self.params.filelock:
             try:
@@ -119,6 +130,7 @@ class Donald(AsyncMixin):
 
         # Start schedulers
         for idx, schedule in enumerate(self.schedules):
+            logger.info('Schedule %s', repr_func(schedule))
             self.schedules[idx] = aio.create_task(schedule())
 
         # Mark self started
@@ -134,6 +146,10 @@ class Donald(AsyncMixin):
         :returns: A future
         """
         if self.is_closed() or not self._started:
+            return
+
+        if not self.is_main():
+            logger.warning('Donald can be stopped only inside the main process.')
             return
 
         logger.warning('Stop Donald')
@@ -226,6 +242,7 @@ class Donald(AsyncMixin):
 
         def wrapper(func):
 
+            @wraps(func)
             async def scheduler():
                 while True:
                     sleep = max(timer(), 0.01)
@@ -233,7 +250,6 @@ class Donald(AsyncMixin):
                     await aio.sleep(sleep)
                     self.submit(func, *args, **kwargs)
 
-            logger.info('Schedule %r', repr_func(func, args, kwargs))
             self.schedules.append(scheduler)
             return func
 

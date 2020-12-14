@@ -2,7 +2,6 @@
 
 import os
 import asyncio as aio
-from concurrent.futures import Future
 from inspect import iscoroutinefunction
 
 
@@ -75,7 +74,7 @@ class FileLock(object):
         self.release()
 
 
-def repr_func(func, args, kwargs):
+def repr_func(func, args=[], kwargs={}):
     """Stringify the given function with the args."""
     return "%s(%s%s%s)" % (
         func.__qualname__,
