@@ -28,7 +28,8 @@ class ProcessWorker(mp.Process):
     def run(self):
         """Wait for a command and do the job."""
         logger.setLevel(self.params['loglevel'].upper())
-        loop = aio.get_event_loop()
+        loop = aio.events.new_event_loop()
+        aio.events.set_event_loop(loop)
 
         def stop():
             self.running = False
