@@ -12,7 +12,7 @@ from crontab import CronTab
 from . import logger
 from .queue import Queue
 from .utils import AsyncMixin, AttrDict, FileLock, repr_func, create_task
-from .worker import ProcessWorker
+from .worker import run_worker
 
 
 class Donald(AsyncMixin):
@@ -116,7 +116,7 @@ class Donald(AsyncMixin):
         self.tx = ctx.Queue()
 
         self.workers = tuple(
-            ProcessWorker(self.rx, self.tx, **self.params)
+            ctx.Process(target=run_worker, args=(self.rx, self.tx, self.params))
             for _ in range(max(self.params.num_workers, 1)))
 
         # Start listener
@@ -125,9 +125,6 @@ class Donald(AsyncMixin):
         # Start workers
         for wrk in self.workers:
             wrk.start()
-
-        while not all(wrk.started.is_set() for wrk in self.workers):
-            continue
 
         # Start schedulers
         for idx, schedule in enumerate(self.schedules):

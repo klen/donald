@@ -33,6 +33,9 @@ async def test_base(donald):
     donald.submit(tasks.async_wait, 100)
     assert donald.waiting
 
+    results = await donald.submit(tasks.run_separate_task)
+    assert results == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
 
 @pytest.mark.asyncio
 async def test_exception(donald):

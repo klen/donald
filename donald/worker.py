@@ -3,7 +3,6 @@
 from functools import partial
 from queue import Empty
 import asyncio as aio
-import multiprocessing as mp
 import signal
 import sys
 
@@ -11,17 +10,21 @@ from . import logger
 from .utils import repr_func, create_task
 
 
-class ProcessWorker(mp.Process):
+def run_worker(rx, tx, params):
+    """Create and run a worker inside a process."""
+    worker = Worker(rx, tx, params)
+    return worker.run()
+
+
+class Worker:
 
     """Put a job into a separate process."""
 
-    def __init__(self, rx, tx, **params):
+    def __init__(self, rx, tx, params):
         """Initialize the worker."""
-        mp.Process.__init__(self)
         self.rx = rx
         self.tx = tx
         self.params = params
-        self.started = mp.Event()
         self.tasks = 0
         self.running = False
 
@@ -41,7 +44,6 @@ class ProcessWorker(mp.Process):
         """Listen for tasks and run."""
         logger.info('Start worker: loop %s', id(aio.get_event_loop()))
         await self.handle('on_start')
-        self.started.set()
         self.running = True
 
         while self.running:

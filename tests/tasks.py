@@ -46,3 +46,8 @@ async def app_stop():
 
 async def get_app_status():
     return APP_STATUS
+
+
+async def run_separate_task():
+    coros = [async_(num) for num in range(10)]
+    return await aio.gather(*coros)
