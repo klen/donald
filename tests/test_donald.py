@@ -15,7 +15,6 @@ async def donald():
     await donald.stop()
 
 
-@pytest.mark.asyncio
 async def test_base(donald):
     assert not donald.waiting
 
@@ -37,14 +36,12 @@ async def test_base(donald):
     assert results == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 
-@pytest.mark.asyncio
 async def test_exception(donald):
 
     with pytest.raises(Exception):
         await donald.submit(tasks.exception)
 
 
-@pytest.mark.asyncio
 async def test_schedule():
     from donald import Donald
 
@@ -63,7 +60,6 @@ async def test_schedule():
     await donald.stop()
 
 
-@pytest.mark.asyncio
 async def test_fake_mode(donald):
     donald.params.fake_mode = True
     task = donald.submit(tasks.blocking, 42)
@@ -71,11 +67,13 @@ async def test_fake_mode(donald):
     res = await task
     assert res == 42
 
+    from donald.queue import Queue
+
+    donald.queue = Queue(donald)
     res = await donald.queue.submit(tasks.blocking, 42)
     assert res == 42
 
 
-@pytest.mark.asyncio
 async def test_worker_cycle():
     from donald import Donald
 

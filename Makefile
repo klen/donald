@@ -42,34 +42,14 @@ patch:
 major:
 	make release VERSION=major
 
-# ===============
-#  Build package
-# ===============
-
-.PHONY: register
-# target: register - Register module on PyPi
-register:
-	@python setup.py register
-
-.PHONY: upload
-# target: upload - Upload module on PyPi
-upload: clean
-	@pip install twine wheel
-	@python setup.py sdist bdist_wheel
-	@$(VIRTUAL_ENV)/bin/twine upload dist/*.tar.gz || true
-	@$(VIRTUAL_ENV)/bin/twine upload dist/*.whl || true
-
 # =============
 #  Development
 # =============
 
-$(VIRTUAL_ENV): $(CURDIR)/requirements.txt
-	$(VIRTUAL_ENV)/bin/pip install -r requirements-tests.txt
+$(VIRTUAL_ENV): $(CURDIR)/setup.cfg
+	python -m venv $(VIRTUAL_ENV)
+	$(VIRTUAL_ENV)/bin/pip install -e .[tests]
 	touch $(VIRTUAL_ENV)
-
-$(VIRTUAL_ENV)/bin/py.test: $(VIRTUAL_ENV) $(CURDIR)/requirements-tests.txt
-	$(VIRTUAL_ENV)/bin/pip install -r requirements-tests.txt
-	touch $(VIRTUAL_ENV)/bin/py.test
 
 
 run: $(VIRTUAL_ENV)
@@ -80,5 +60,5 @@ rabbit:
 
 .PHONY: t test
 # target: test - Runs tests
-t test: $(VIRTUAL_ENV)/bin/py.test
-	@$(VIRTUAL_ENV)/bin/py.test tests
+t test: $(VIRTUAL_ENV)
+	@$(VIRTUAL_ENV)/bin/pytest tests

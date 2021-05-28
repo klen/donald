@@ -19,41 +19,45 @@ class Donald(AsyncMixin):
 
     """I'am on Donald."""
 
-    defaults = dict(
+    defaults = {
 
         # Run tasks imediatelly in the same process/thread
-        fake_mode=False,
+        'fake_mode': False,
 
         # Number of workers
-        num_workers=mp.cpu_count() - 1,
+        'num_workers': mp.cpu_count() - 1,
 
         # Maximum concurent tasks per worker
-        max_tasks_per_worker=100,
+        'max_tasks_per_worker': 100,
 
         # Ensure that the Donald starts only once
-        filelock=None,
+        'filelock': None,
 
         # logging level
-        loglevel='INFO',
+        'loglevel': 'INFO',
 
         # Start handlers
-        on_start=[],
+        'on_start': [],
 
         # Stop handlers
-        on_stop=[],
+        'on_stop': [],
 
         # Exception handlers
-        on_exception=[],
+        'on_exception': [],
 
         # AMQP params
-        queue=dict(
-            exchange='donald',
-            queue='donald',
-        ),
-
-    )
+        'queue': False,
+        'queue_name': 'donald',
+        'queue_exchange': 'donald',
+    }
 
     crontab = CronTab
+    workers = None
+    listener = None
+    queue = None
+
+    _loop = None
+    _started = False
 
     def __init__(self, on_start=None, on_stop=None, **params):
         """Initialize donald parameters."""
@@ -65,25 +69,17 @@ class Donald(AsyncMixin):
 
         self.rx = self.tx = None
 
-        self.workers = None
-        self.listener = None
         self.lock = FileLock(self.params.filelock)
         self.schedules = []
         self.waiting = {}
-        self._loop = None
-        self._started = False
 
-        self.queue = Queue(self, **self.params.queue)
+        if self.params.queue:
+            self.queue = Queue(
+                self, queue=self.params.queue_name, exchange=self.params.queue_exchange)
 
     def __str__(self):
         """Representate as a string."""
-        return 'Donald [%s]' % self.params['num_workers']
-
-    def init_loop(self, loop):
-        """Bind to given loop."""
-        if not self._started:
-            self._loop = loop or aio.get_event_loop()
-            self.queue.init_loop(loop)
+        return f"Donald [{self.params.num_workers}]"
 
     def is_main(self):
         """Check that we are inside the main process."""
@@ -95,7 +91,9 @@ class Donald(AsyncMixin):
         :returns: A coroutine
         """
         logger.warning('Start Donald: loop %s', id(aio.get_event_loop()))
-        self.init_loop(loop)
+        self._loop = loop or aio.get_event_loop()
+        if self.queue:
+            self.queue.init_loop(loop)
 
         if self.params.fake_mode:
             return True
@@ -214,10 +212,10 @@ class Donald(AsyncMixin):
         if self.params.fake_mode:
             return create_task(func, args, kwargs)
 
-        if not self._started:
-            if self.queue._started:
-                return self.queue.submit(func, *args, **kwargs)
+        if self.queue:
+            return self.queue.submit(func, *args, **kwargs)
 
+        if not self._started:
             raise RuntimeError('Donald is not started yet')
 
         fut = self.loop.create_future()
