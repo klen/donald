@@ -51,3 +51,8 @@ async def get_app_status():
 async def run_separate_task():
     coros = [async_(num) for num in range(10)]
     return await aio.gather(*coros)
+
+
+async def write_file(filepath, content):
+    with open(filepath, 'w') as f:
+        f.write(content)

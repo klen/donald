@@ -89,13 +89,18 @@ async def test_worker_cycle():
     await donald.stop()
 
 
-async def test_queue(capsys):
+async def test_queue(tmp_path):
     from donald import Donald
 
+    filepath = tmp_path / 'task'
     async with Donald(num_workers=2, loglevel='DEBUG', queue=True) as donald:
-        assert donald
-        assert donald._started
-        assert donald.queue
-        assert donald.queue._started
-        donald.queue.submit(tasks.async_, 21)
-        assert 42 == await donald.submit(tasks.async_, 42)
+        async with donald.queue as queue:
+            assert donald
+            assert donald._started
+            assert donald.queue
+            assert queue._started
+            assert 42 == await donald.submit(tasks.async_, 42)
+            queue.submit(tasks.write_file, str(filepath), 'done')
+            await asyncio.sleep(1e-2)
+
+    assert filepath.read_text() == 'done'

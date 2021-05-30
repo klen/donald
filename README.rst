@@ -76,10 +76,9 @@ From asynchronous python code:
         loglevel='INFO',
 
         # AMQP params
-        queue={
-            'exchange': 'donald',
-            'queue': 'donald',
-        }
+        queue=False,
+        queue_name='donald',
+        queue_params={},
     )
 
     # Schedule periodic tasks
@@ -93,10 +92,16 @@ From asynchronous python code:
     # ...
 
     # Submit a task to donald
-    await donald.submit(corofunction or function, *args, **kwargs)
+    donald.submit(corofunction or function, *args, **kwargs)
 
     # Submit and wait for result
     result = await donald.submit(corofunction or function, *args, **kwargs)
+
+    # Submit a task to queue
+    queue.submit(corofunction or function, *args, **kwargs)
+    await donald.queue.submit(corofunction or function, *args, **kwargs)
+
+    # note: queue dont support waiting for results
 
     # ...
 
@@ -129,10 +134,6 @@ Submit tasks to AMQP
     await donald.queue.submit(<coro or func>, *args, **kwargs)
 
     # ...
-
-    # Listen tasks
-    await donald.queue.listen()
-    await donald.listen(<AMQP URL>)
 
 
 .. _bugtracker:

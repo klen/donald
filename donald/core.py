@@ -46,7 +46,6 @@ class Donald(AsyncMixin):
         'on_exception': [],
 
         # AMQP params
-        'queue': False,
         'queue_name': 'donald',
         'queue_params': {},
     }
@@ -73,9 +72,8 @@ class Donald(AsyncMixin):
         self.schedules = []
         self.waiting = {}
 
-        if self.params.queue:
-            self.queue = Queue(
-                self, **dict(self.params.queue_params, queue=self.params.queue_name))
+        self.queue = Queue(
+            self, **dict(self.params.queue_params, queue=self.params.queue_name))
 
     def __str__(self):
         """Representate as a string."""
@@ -92,8 +90,7 @@ class Donald(AsyncMixin):
         """
         logger.warning('Start Donald: loop %s', id(aio.get_event_loop()))
         self._loop = loop or aio.get_event_loop()
-        if self.queue:
-            self.queue.init_loop(loop)
+        self.queue.init_loop(loop)
 
         if self.params.fake_mode:
             return True
@@ -125,10 +122,6 @@ class Donald(AsyncMixin):
         # Start listener
         self.listener = aio.create_task(self.listen())
 
-        # Start queue
-        if self.queue:
-            await self.queue.start()
-
         # Start schedulers
         for idx, schedule in enumerate(self.schedules):
             logger.info('Schedule %s', repr_func(schedule))
@@ -157,10 +150,6 @@ class Donald(AsyncMixin):
 
         if self.params.filelock:
             self.lock.release()
-
-        # Start queue
-        if self.queue:
-            await self.queue.stop()
 
         # Stop runner if exists
         if self.listener:

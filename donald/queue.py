@@ -72,6 +72,15 @@ class Queue(AsyncMixin):
         self.transport.close()
         self._connected = False
 
+    async def __aenter__(self):
+        """Support usage as a context manager."""
+        await self.start()
+        return self
+
+    async def __aexit__(self, *args):
+        """Support usage as a context manager."""
+        await self.stop()
+
     async def connect(self):
         """Connect to queue."""
         if self._connected:

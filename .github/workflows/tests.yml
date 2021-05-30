@@ -13,6 +13,10 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    services:
+      rmq:
+        image: rabbitmq
+        ports: ["5672:5672"]
 
     steps:
     - name: Checkout changes
