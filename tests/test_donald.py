@@ -1,4 +1,4 @@
-import asyncio as aio
+import asyncio
 from . import tasks
 
 import pytest
@@ -8,11 +8,8 @@ import pytest
 async def donald():
     from donald import Donald
 
-    donald = Donald(num_workers=2, loglevel='DEBUG')
-
-    await donald.start()
-    yield donald
-    await donald.stop()
+    async with Donald(num_workers=2, loglevel='DEBUG') as donald:
+        yield donald
 
 
 async def test_base(donald):
@@ -22,7 +19,7 @@ async def test_base(donald):
     donald.submit(tasks.async_blocking, 2)
     assert donald.waiting
 
-    results = await aio.gather(
+    results = await asyncio.gather(
         donald.submit(tasks.blocking, 3),
         donald.submit(tasks.async_blocking, 4),
     )
@@ -54,7 +51,7 @@ async def test_schedule():
     await donald.start()
     assert not donald.waiting
 
-    await aio.sleep(0.3)
+    await asyncio.sleep(0.3)
     assert len(donald.waiting) == 2
 
     await donald.stop()
@@ -63,13 +60,16 @@ async def test_schedule():
 async def test_fake_mode(donald):
     donald.params.fake_mode = True
     task = donald.submit(tasks.blocking, 42)
-    assert isinstance(task, aio.Task)
+    assert isinstance(task, asyncio.Task)
     res = await task
     assert res == 42
 
     from donald.queue import Queue
 
     donald.queue = Queue(donald)
+    res = await donald.submit(tasks.blocking, 42)
+    assert res == 42
+
     res = await donald.queue.submit(tasks.blocking, 42)
     assert res == 42
 
@@ -87,3 +87,15 @@ async def test_worker_cycle():
     assert res == 'STARTED'
 
     await donald.stop()
+
+
+async def test_queue(capsys):
+    from donald import Donald
+
+    async with Donald(num_workers=2, loglevel='DEBUG', queue=True) as donald:
+        assert donald
+        assert donald._started
+        assert donald.queue
+        assert donald.queue._started
+        donald.queue.submit(tasks.async_, 21)
+        assert 42 == await donald.submit(tasks.async_, 42)

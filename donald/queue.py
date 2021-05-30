@@ -6,7 +6,7 @@ from importlib import import_module
 
 import aioamqp
 
-from . import logger, AIOFALSE, AIOTRUE
+from . import logger, AIOFALSE
 from .utils import AsyncMixin, repr_func
 
 
@@ -49,7 +49,7 @@ class Queue(AsyncMixin):
     async def start(self, listen=True, loop=None):
         """Connect and start listen the message queue."""
         if self.master.params.fake_mode:
-            return AIOTRUE
+            return True
 
         logger.warning('Start Donald Queue')
 
@@ -58,7 +58,7 @@ class Queue(AsyncMixin):
 
         await self.connect()
         if listen:
-            await self.listen()
+            await self.channel.basic_consume(self.listen, queue_name=self.params['queue'])
 
     async def stop(self, *args, **kwargs):
         """Stop listeners."""
@@ -100,15 +100,6 @@ class Queue(AsyncMixin):
         logger.error(exc)
         self.loop.call_later(1, aio.create_task, self.connect())
 
-    def listen(self):
-        """Run tasks from self.queue.
-
-        :returns: A coroutine
-        """
-        if self.master.params.fake_mode:
-            return AIOFALSE
-        return self.channel.basic_consume(self.callback, queue_name=self.params['queue'])
-
     def submit(self, func, *args, **kwargs):
         """Submit to the queue."""
         if self.master.params.fake_mode:
@@ -127,8 +118,8 @@ class Queue(AsyncMixin):
             routing_key=self.params['queue'], properties=properties
         ))
 
-    async def callback(self, channel, body, envelope, properties):
-        """Do a callback."""
+    async def listen(self, channel, body, envelope, properties):
+        """Run tasks from self.queue."""
         func, args, kwargs = pickle.loads(body)
         if isinstance(func, str):
             mod, _, func = func.rpartition('.')
@@ -139,8 +130,6 @@ class Queue(AsyncMixin):
                 logger.error(exc)
                 return False
 
-        fut = self.master.submit(func, *args, **kwargs)
+        self.master.submit(func, *args, **kwargs)
         if channel:
             await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
-
-        return fut

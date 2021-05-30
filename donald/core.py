@@ -48,7 +48,7 @@ class Donald(AsyncMixin):
         # AMQP params
         'queue': False,
         'queue_name': 'donald',
-        'queue_exchange': 'donald',
+        'queue_params': {},
     }
 
     crontab = CronTab
@@ -75,7 +75,7 @@ class Donald(AsyncMixin):
 
         if self.params.queue:
             self.queue = Queue(
-                self, queue=self.params.queue_name, exchange=self.params.queue_exchange)
+                self, **dict(self.params.queue_params, queue=self.params.queue_name))
 
     def __str__(self):
         """Representate as a string."""
@@ -117,12 +117,17 @@ class Donald(AsyncMixin):
             ctx.Process(target=run_worker, args=(self.rx, self.tx, self.params))
             for _ in range(max(self.params.num_workers, 1)))
 
-        # Start listener
-        self.listener = aio.create_task(self.listen())
-
         # Start workers
         for wrk in self.workers:
             wrk.start()
+            self.tx.get(block=True)
+
+        # Start listener
+        self.listener = aio.create_task(self.listen())
+
+        # Start queue
+        if self.queue:
+            await self.queue.start()
 
         # Start schedulers
         for idx, schedule in enumerate(self.schedules):
@@ -153,6 +158,10 @@ class Donald(AsyncMixin):
         if self.params.filelock:
             self.lock.release()
 
+        # Start queue
+        if self.queue:
+            await self.queue.stop()
+
         # Stop runner if exists
         if self.listener:
             self.listener.cancel()
@@ -179,16 +188,27 @@ class Donald(AsyncMixin):
 
         return True
 
+    async def __aenter__(self):
+        """Support usage as a context manager."""
+        await self.start()
+        return self
+
+    async def __aexit__(self, *args):
+        """Support usage as a context manager."""
+        await self.stop()
+
     async def listen(self):
         """Wait for a result and process."""
+        tx = self.tx
+        waiting = self.waiting
         while True:
-            if not self.waiting:
+            if not waiting:
                 await aio.sleep(1e-2)
                 continue
 
             try:
-                ident, res, *args = self.tx.get(block=False)
-                fut = self.waiting.pop(ident, None)
+                ident, res, *args = tx.get(block=False)
+                fut = waiting.pop(ident, None)
                 if fut:
                     if isinstance(res, Exception):
                         fut.set_exception(res)
@@ -208,16 +228,13 @@ class Donald(AsyncMixin):
         if not callable(func):
             raise ValueError('Invalid call: %r' % func)
 
-        logger.debug('Submit: %s', repr_func(func, args, kwargs))
         if self.params.fake_mode:
             return create_task(func, args, kwargs)
-
-        if self.queue:
-            return self.queue.submit(func, *args, **kwargs)
 
         if not self._started:
             raise RuntimeError('Donald is not started yet')
 
+        logger.debug('Submit: %s', repr_func(func, args, kwargs))
         fut = self.loop.create_future()
         self.waiting[id(fut)] = fut
         self.rx.put((id(fut), func, args, kwargs))

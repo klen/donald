@@ -38,19 +38,24 @@ class Worker:
             self.running = False
 
         loop.add_signal_handler(signal.SIGINT, stop)
-        loop.run_until_complete(self.runner())
+        loop.run_until_complete(self.listen())
 
-    async def runner(self):
+    async def listen(self):
         """Listen for tasks and run."""
         logger.info('Start worker: loop %s', id(aio.get_event_loop()))
         await self.handle('on_start')
         self.running = True
 
-        while self.running:
+        rx = self.rx
+        params = self.params
 
-            if self.tasks < self.params['max_tasks_per_worker']:
+        # Mark self as a ready
+        self.tx.put(True)
+
+        while self.running:
+            if self.tasks < params['max_tasks_per_worker']:
                 try:
-                    message = self.rx.get(block=False)
+                    message = rx.get(block=False)
                     if message is None:
                         self.running = False
                         break
