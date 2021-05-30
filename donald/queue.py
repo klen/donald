@@ -1,5 +1,5 @@
 """AMPQ support."""
-import asyncio as aio
+import asyncio
 import pickle
 import uuid
 from importlib import import_module
@@ -40,7 +40,7 @@ class Queue(AsyncMixin):
     def init_loop(self, loop):
         """Bind to given loop."""
         if not self._started:
-            self._loop = loop or aio.get_event_loop()
+            self._loop = loop or asyncio.get_event_loop()
 
     def is_connected(self):
         """Check that the queue is connected."""
@@ -88,17 +88,17 @@ class Queue(AsyncMixin):
 
         logger.warning('Connect to queue: %r', self.params)
         try:
-            self.transport, self.protocol = await aioamqp.connect(
-                loop=self._loop, on_error=self.on_error, **self.params)
+            self.transport, self.protocol = await asyncio.wait_for(aioamqp.connect(
+                loop=self._loop, on_error=self.on_error, **self.params), timeout=10
+            )
             self.channel = await self.protocol.channel()
-
             await self.channel.queue_declare(queue_name=self.params['queue'], durable=True)
             await self.channel.basic_qos(
                 prefetch_count=1, prefetch_size=0, connection_global=False)
             self._connected = True
-
-        except (aioamqp.AmqpClosedConnection, OSError) as exc:
+        except Exception as exc:
             self.on_error(exc)
+            raise
 
     def on_error(self, exc):
         """Error callback."""
@@ -107,7 +107,7 @@ class Queue(AsyncMixin):
             return False
 
         logger.error(exc)
-        self.loop.call_later(1, aio.create_task, self.connect())
+        self.loop.call_later(1, asyncio.create_task, self.connect())
 
     def submit(self, func, *args, **kwargs):
         """Submit to the queue."""
@@ -122,7 +122,7 @@ class Queue(AsyncMixin):
         if not self._connected:
             return AIOFALSE
 
-        return aio.create_task(self.channel.basic_publish(
+        return asyncio.create_task(self.channel.basic_publish(
             payload=payload, exchange_name=self.params['exchange_name'],
             routing_key=self.params['queue'], properties=properties
         ))
