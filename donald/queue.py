@@ -65,12 +65,13 @@ class Queue(AsyncMixin):
         if not self.is_connected() or self.is_closed() or not self._started:
             return False
 
-        logger.warning('Stop Donald Queue')
-
         self._started = False
-        await self.protocol.close()
+
+        await self.protocol.close(no_wait=True)
         self.transport.close()
         self._connected = False
+
+        logger.warning('Donald Queue is stopped')
 
     async def __aenter__(self):
         """Support usage as a context manager."""

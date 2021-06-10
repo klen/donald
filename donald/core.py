@@ -142,11 +142,7 @@ class Donald(AsyncMixin):
         if self.is_closed() or not self._started:
             return
 
-        if not self.is_main():
-            logger.warning('Donald can be stopped only inside the main process.')
-            return
-
-        logger.warning('Stop Donald')
+        logger.warning('Stoping Donald')
 
         if self.params.filelock:
             self.lock.release()
@@ -175,6 +171,7 @@ class Donald(AsyncMixin):
         if self.listener and not self.listener.done():
             await aio.sleep(1e-2)
 
+        logger.warning('Donald is stopped')
         return True
 
     async def __aenter__(self):
@@ -262,7 +259,6 @@ class Donald(AsyncMixin):
 
     async def run(self, timer=60):
         """Keep asyncio busy."""
-        logger.info('Donald is running')
         while self._started:
             logger.info('Donald is running')
             await aio.sleep(timer)

@@ -1,10 +1,10 @@
 """Do the work."""
 
-from functools import partial
-from queue import Empty
 import asyncio as aio
 import signal
 import sys
+from functools import partial
+from queue import Empty
 
 from . import logger
 from .utils import repr_func, create_task
