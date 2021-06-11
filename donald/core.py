@@ -79,10 +79,6 @@ class Donald(AsyncMixin):
         """Representate as a string."""
         return f"Donald [{self.params.num_workers}]"
 
-    def is_main(self):
-        """Check that we are inside the main process."""
-        return mp.current_process().name == 'MainProcess'
-
     async def start(self, loop=None):
         """Start workers.
 
@@ -94,10 +90,6 @@ class Donald(AsyncMixin):
 
         if self.params.fake_mode:
             return True
-
-        if not self.is_main():
-            logger.warning('Donald can be started only inside the main process.')
-            return
 
         if self.params.filelock:
             try:
