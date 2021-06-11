@@ -1,6 +1,6 @@
 """Donald Asyncio Tasks."""
 
-import asyncio as aio
+import asyncio
 import datetime
 import multiprocessing as mp
 import signal
@@ -42,12 +42,12 @@ class Donald(AsyncMixin):
         # Stop handlers
         'on_stop': [],
 
-        # Exception handlers
-        'on_exception': [],
-
         # AMQP params
         'queue_name': 'donald',
         'queue_params': {},
+
+        # Sentry
+        'sentry_dsn': None,
     }
 
     crontab = CronTab
@@ -72,8 +72,7 @@ class Donald(AsyncMixin):
         self.schedules = []
         self.waiting = {}
 
-        self.queue = Queue(
-            self, **dict(self.params.queue_params, queue=self.params.queue_name))
+        self.queue = Queue(self, **dict(self.params.queue_params, queue=self.params.queue_name))
 
     def __str__(self):
         """Representate as a string."""
@@ -84,8 +83,8 @@ class Donald(AsyncMixin):
 
         :returns: A coroutine
         """
-        logger.warning('Start Donald: loop %s', id(aio.get_event_loop()))
-        self._loop = loop or aio.get_event_loop()
+        logger.warning('Start Donald: loop %s', id(asyncio.get_event_loop()))
+        self._loop = loop or asyncio.get_event_loop()
         self.queue.init_loop(loop)
 
         if self.params.fake_mode:
@@ -112,12 +111,12 @@ class Donald(AsyncMixin):
             self.tx.get(block=True)
 
         # Start listener
-        self.listener = aio.create_task(self.listen())
+        self.listener = asyncio.create_task(self.listen())
 
         # Start schedulers
         for idx, schedule in enumerate(self.schedules):
             logger.info('Schedule %s', repr_func(schedule))
-            self.schedules[idx] = aio.create_task(schedule())
+            self.schedules[idx] = asyncio.create_task(schedule())
 
         # Mark self started
         self._started = True
@@ -161,7 +160,7 @@ class Donald(AsyncMixin):
         self._started = False
 
         if self.listener and not self.listener.done():
-            await aio.sleep(1e-2)
+            await asyncio.sleep(1e-2)
 
         logger.warning('Donald is stopped')
         return True
@@ -181,7 +180,7 @@ class Donald(AsyncMixin):
         waiting = self.waiting
         while True:
             if not waiting:
-                await aio.sleep(1e-2)
+                await asyncio.sleep(1e-2)
                 continue
 
             try:
@@ -196,7 +195,7 @@ class Donald(AsyncMixin):
             except Empty:
                 pass
 
-            await aio.sleep(0)
+            await asyncio.sleep(0)
 
     def submit(self, func, *args, **kwargs):
         """Submit a task to workers.
@@ -214,8 +213,9 @@ class Donald(AsyncMixin):
 
         logger.debug('Submit: %s', repr_func(func, args, kwargs))
         fut = self.loop.create_future()
-        self.waiting[id(fut)] = fut
-        self.rx.put((id(fut), func, args, kwargs))
+        fut_id = id(fut)
+        self.waiting[fut_id] = fut
+        self.rx.put((fut_id, func, args, kwargs))
         return fut
 
     def schedule(self, interval, *args, **kwargs):
@@ -236,13 +236,19 @@ class Donald(AsyncMixin):
 
         def wrapper(func):
 
+            async def catcher():
+                try:
+                    await self.submit(func, *args, **kwargs)
+                except Exception:
+                    pass
+
             @wraps(func)
             async def scheduler():
                 while True:
                     sleep = max(timer(), 0.01)
                     logger.info('Next %s in %0.2f s', repr_func(func, args, kwargs), sleep)
-                    await aio.sleep(sleep)
-                    self.submit(func, *args, **kwargs)
+                    await asyncio.sleep(sleep)
+                    asyncio.create_task(catcher())
 
             self.schedules.append(scheduler)
             return func
@@ -253,27 +259,22 @@ class Donald(AsyncMixin):
         """Keep asyncio busy."""
         while self._started:
             logger.info('Donald is running')
-            await aio.sleep(timer)
+            await asyncio.sleep(timer)
 
-    def on_start(self, func):
+    def on_start(self, func, *args, **kwargs):
         """Register start handler."""
-        self.params.on_start.append(func)
+        self.params.on_start.append((func, args, kwargs))
         return func
 
-    def on_stop(self, func):
+    def on_stop(self, func, *args, **kwargs):
         """Register stop handler."""
-        self.params.on_stop.append(func)
-        return func
-
-    def on_exception(self, func):
-        """Register exception handler."""
-        self.params.on_exception.append(func)
+        self.params.on_stop.append((func, args, kwargs))
         return func
 
 
 def run_donald(donald, queue=True):
     """Help to run donald."""
-    loop = aio.get_event_loop()
+    loop = asyncio.get_event_loop()
 
     async def stop_donald():
         if queue:

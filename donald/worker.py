@@ -2,9 +2,9 @@
 
 import asyncio as aio
 import signal
-import sys
 from functools import partial
 from queue import Empty
+from contextlib import contextmanager
 
 from . import logger
 from .utils import repr_func, create_task
@@ -28,6 +28,11 @@ class Worker:
         self.tasks = 0
         self.running = False
 
+        if params['sentry_dsn']:
+            from sentry_sdk import init
+
+            init(params['sentry_dsn'])
+
     def run(self):
         """Wait for a command and do the job."""
         logger.setLevel(self.params['loglevel'].upper())
@@ -38,6 +43,8 @@ class Worker:
             self.running = False
 
         loop.add_signal_handler(signal.SIGINT, stop)
+        loop.add_signal_handler(signal.SIGTERM, stop)
+
         loop.run_until_complete(self.listen())
 
     async def listen(self):
@@ -84,23 +91,31 @@ class Worker:
 
     def done(self, ident, task):
         """Send the task's result back to main."""
-        try:
+        with catch_exc(self):
+            res = task.exception()
+            if res is not None:
+                raise res
+
             res = task.result()
-        except BaseException as exc:
-            res = exc
-            if self.params['on_exception']:
-                aio.create_task(self.handle('on_exception', res, sys.exc_info()))
 
-        finally:
-            self.tasks -= 1
-
+        self.tasks -= 1
         self.tx.put((ident, res))
 
-    async def handle(self, etype, *args, **kwargs):
+    async def handle(self, etype):
         """Run handlers."""
-        for handler in self.params.get(etype, []):
-            try:
-                await create_task(handler, args, kwargs)
-            except Exception as exc:
-                logger.error("Error: %s", etype.upper())
-                logger.exception(exc)
+        for (func, args, kwargs) in self.params.get(etype, []):
+            with catch_exc(self):
+                await create_task(func, args, kwargs)
+
+
+@contextmanager
+def catch_exc(worker: Worker):
+    """Catch exceptions."""
+    try:
+        yield worker
+    except BaseException as exc:
+        logger.exception(exc)
+        if worker.params['sentry_dsn']:
+            from sentry_sdk import capture_exception
+
+            capture_exception(exc)
