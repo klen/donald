@@ -28,10 +28,10 @@ class Worker:
         self.tasks = 0
         self.running = False
 
-        if params['sentry_dsn']:
+        if params['sentry']:
             from sentry_sdk import init
 
-            init(params['sentry_dsn'])
+            init(**params['sentry'])
 
     def run(self):
         """Wait for a command and do the job."""
@@ -115,7 +115,7 @@ def catch_exc(worker: Worker):
         yield worker
     except BaseException as exc:
         logger.exception(exc)
-        if worker.params['sentry_dsn']:
+        if worker.params['sentry']:
             from sentry_sdk import capture_exception
 
             capture_exception(exc)

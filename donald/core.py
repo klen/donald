@@ -46,8 +46,8 @@ class Donald(AsyncMixin):
         'queue_name': 'donald',
         'queue_params': {},
 
-        # Sentry
-        'sentry_dsn': None,
+        # Sentry options ({'dsn': '...'})
+        'sentry': None,
     }
 
     crontab = CronTab
