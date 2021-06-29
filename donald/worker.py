@@ -7,7 +7,7 @@ from queue import Empty
 from contextlib import contextmanager
 
 from . import logger
-from .utils import repr_func, create_task
+from .utils import create_task
 
 
 def run_worker(rx, tx, params):
@@ -68,7 +68,7 @@ class Worker:
                         break
 
                     ident, func, args, kwargs = message
-                    logger.info("Run: %s", repr_func(func, args, kwargs))
+                    logger.info("Run: '%s'", func.__qualname__)
                     task = create_task(func, args, kwargs)
                     task.add_done_callback(partial(self.done, ident))
                     self.tasks += 1

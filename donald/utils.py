@@ -74,16 +74,6 @@ class FileLock(object):
         self.release()
 
 
-def repr_func(func, args=[], kwargs={}):
-    """Stringify the given function with the args."""
-    return "%s(%s%s%s)" % (
-        func.__qualname__,
-        ",".join(map(repr, args)),
-        kwargs and ", " or "",
-        ",".join("%s=%r" % item for item in kwargs.items())
-    )
-
-
 def create_task(func, args, kwargs):
     """Create a task from the given function."""
     if iscoroutinefunction(func):

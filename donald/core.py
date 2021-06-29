@@ -11,7 +11,7 @@ from crontab import CronTab
 
 from . import logger
 from .queue import Queue
-from .utils import AsyncMixin, AttrDict, FileLock, repr_func, create_task
+from .utils import AsyncMixin, AttrDict, FileLock, create_task
 from .worker import run_worker
 
 
@@ -115,7 +115,7 @@ class Donald(AsyncMixin):
 
         # Start schedulers
         for idx, schedule in enumerate(self.schedules):
-            logger.info('Schedule %s', repr_func(schedule))
+            logger.info("Schedule '%s'", schedule.__qualname__)
             self.schedules[idx] = asyncio.create_task(schedule())
 
         # Mark self started
@@ -211,7 +211,7 @@ class Donald(AsyncMixin):
         if not self._started:
             raise RuntimeError('Donald is not started yet')
 
-        logger.debug('Submit: %s', repr_func(func, args, kwargs))
+        logger.debug("Submit: '%s'", func.__qualname__)
         fut = self.loop.create_future()
         fut_id = id(fut)
         self.waiting[fut_id] = fut
@@ -246,7 +246,7 @@ class Donald(AsyncMixin):
             async def scheduler():
                 while True:
                     sleep = max(timer(), 0.01)
-                    logger.info('Next %s in %0.2f s', repr_func(func, args, kwargs), sleep)
+                    logger.info("Next '%s' in %0.2f s", func.__qualname__, sleep)
                     await asyncio.sleep(sleep)
                     asyncio.create_task(catcher())
 

@@ -7,7 +7,7 @@ from importlib import import_module
 import aioamqp
 
 from . import logger, AIOFALSE
-from .utils import AsyncMixin, repr_func
+from .utils import AsyncMixin
 
 
 class Queue(AsyncMixin):
@@ -115,7 +115,7 @@ class Queue(AsyncMixin):
         if self.master.params.fake_mode:
             return self.master.submit(func, *args, **kwargs)
 
-        logger.info('Submit to queue: %s', repr_func(func, args, kwargs))
+        logger.info("Submit to queue: '%s'", func.__qualname__)
 
         payload = pickle.dumps((func, args, kwargs))
         properties = dict(delivery_mode=2, message_id=str(uuid.uuid4()))
