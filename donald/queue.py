@@ -121,6 +121,7 @@ class Queue(AsyncMixin):
         properties = dict(delivery_mode=2, message_id=str(uuid.uuid4()))
 
         if not self._connected:
+            logger.warning('Donald Queue is not connected')
             return AIOFALSE
 
         return asyncio.create_task(self.channel.basic_publish(
