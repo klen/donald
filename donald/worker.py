@@ -103,7 +103,8 @@ class Worker:
                 raise res
 
         self.tasks -= 1
-        self.tx.put((ident, res))
+        if ident:
+            self.tx.put((ident, res))
 
     async def handle(self, etype):
         """Run handlers."""

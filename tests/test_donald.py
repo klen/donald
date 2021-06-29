@@ -39,20 +39,21 @@ async def test_exception(donald):
         await donald.submit(tasks.exception)
 
 
-async def test_schedule():
+async def test_schedule(tmp_path):
     from donald import Donald
 
+    filepath = tmp_path / 'task'
     donald = Donald(num_workers=2, loglevel='DEBUG')
     assert not donald.schedules
 
-    donald.schedule(.1, 10)(tasks.async_wait)
+    donald.schedule(.1, filepath, 'done')(tasks.write_file)
     assert donald.schedules
 
     await donald.start()
     assert not donald.waiting
 
     await asyncio.sleep(0.3)
-    assert len(donald.waiting) == 2
+    assert filepath.read_text() == 'done'
 
     await donald.stop()
 
@@ -100,6 +101,7 @@ async def test_queue(tmp_path):
             assert donald.queue
             assert queue._started
             assert 42 == await donald.submit(tasks.async_, 42)
+
             queue.submit(tasks.write_file, str(filepath), 'done')
             await asyncio.sleep(2e-2)
 

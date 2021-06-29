@@ -1,5 +1,6 @@
 """Donald Asyncio Tasks."""
 
+import typing as t
 import asyncio
 import datetime
 import multiprocessing as mp
@@ -174,6 +175,28 @@ class Donald(AsyncMixin):
         """Support usage as a context manager."""
         await self.stop()
 
+    def __submit(self, fut: t.Optional[asyncio.Future],
+                 func: t.Callable, *args, **kwargs) -> t.Optional[asyncio.Future]:
+        """Submit the given task to workers."""
+        if not callable(func):
+            raise ValueError('Invalid task: %r' % func)
+
+        if self.params.fake_mode:
+            return create_task(func, args, kwargs)
+
+        if not self._started:
+            raise RuntimeError('Donald is not started yet')
+
+        logger.debug("Submit: '%s'", func.__qualname__)
+        ident = None
+        if fut:
+            ident = id(fut)
+            self.waiting[ident] = fut
+
+        # Send task to workers
+        self.rx.put((ident, func, args, kwargs))
+        return fut
+
     async def listen(self):
         """Wait for a result and process."""
         tx = self.tx
@@ -193,37 +216,27 @@ class Donald(AsyncMixin):
                         fut.set_result(res)
 
                 # Leave the objects from the closure
-                fut = ident = res = args =None
+                fut = ident = res = None
 
             except Empty:
                 pass
 
             await asyncio.sleep(0)
 
-    def leave(self, fut: asyncio.Future):
-        """Release the given future from waiting list."""
-        self.waiting.pop(id(fut), None)
-
-    def submit(self, func, *args, **kwargs):
+    def submit(self, func: t.Callable, *args, **kwargs):
         """Submit a task to workers.
 
         :returns: asyncio.Future
         """
-        if not callable(func):
-            raise ValueError('Invalid call: %r' % func)
-
-        if self.params.fake_mode:
-            return create_task(func, args, kwargs)
-
-        if not self._started:
-            raise RuntimeError('Donald is not started yet')
-
-        logger.debug("Submit: '%s'", func.__qualname__)
         fut = self.loop.create_future()
-        fut_id = id(fut)
-        self.waiting[fut_id] = fut
-        self.rx.put((fut_id, func, args, kwargs))
-        return fut
+        return self.__submit(fut, func, *args, **kwargs)
+
+    def submit_nowait(self, func: t.Callable, *args, **kwargs):
+        """Submit a task to workers.
+
+        :returns: None
+        """
+        return self.__submit(None, func, *args, **kwargs)
 
     def schedule(self, interval, *args, **kwargs):
         """Add func to schedules. Use this as a decorator.
@@ -245,7 +258,7 @@ class Donald(AsyncMixin):
 
             async def catcher():
                 try:
-                    await self.submit(func, *args, **kwargs)
+                    await self.submit_nowait(func, *args, **kwargs)
                 except Exception:
                     pass
 
