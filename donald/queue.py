@@ -141,6 +141,9 @@ class Queue(AsyncMixin):
                 logger.error(exc)
                 return False
 
-        self.master.submit(func, *args, **kwargs)
+        self.master.leave(
+            self.master.submit(func, *args, **kwargs)
+        )
+
         if channel:
             await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)

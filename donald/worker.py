@@ -1,6 +1,6 @@
 """Do the work."""
 
-import asyncio as aio
+import asyncio
 import signal
 from functools import partial
 from queue import Empty
@@ -36,8 +36,8 @@ class Worker:
     def run(self):
         """Wait for a command and do the job."""
         logger.setLevel(self.params['loglevel'].upper())
-        loop = aio.events.new_event_loop()
-        aio.events.set_event_loop(loop)
+        loop = asyncio.events.new_event_loop()
+        asyncio.events.set_event_loop(loop)
 
         def stop():
             self.running = False
@@ -49,7 +49,7 @@ class Worker:
 
     async def listen(self):
         """Listen for tasks and run."""
-        logger.info('Start worker: loop %s', id(aio.get_event_loop()))
+        logger.info('Start worker: loop %s', id(asyncio.get_event_loop()))
         await self.handle('on_start')
         self.running = True
 
@@ -76,15 +76,15 @@ class Worker:
                 except Empty:
                     pass
 
-            await aio.sleep(1e-2)
+            await asyncio.sleep(1e-2)
 
         # Stop the runner
         logger.info('Stop worker')
         await self.handle('on_stop')
 
-        tasks = [task for task in aio.all_tasks() if task is not aio.current_task()]
+        tasks = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
         if tasks:
-            await aio.sleep(1)
+            await asyncio.sleep(1)
 
         for task in tasks:
             task.cancel()
@@ -92,11 +92,15 @@ class Worker:
     def done(self, ident, task):
         """Send the task's result back to main."""
         with catch_exc(self):
-            res = task.exception()
-            if res is not None:
-                raise res
+            try:
+                res = task.exception()
+                if res is not None:
+                    raise res
 
-            res = task.result()
+                res = task.result()
+
+            except (asyncio.CancelledError, asyncio.InvalidStateError) as res:
+                raise res
 
         self.tasks -= 1
         self.tx.put((ident, res))

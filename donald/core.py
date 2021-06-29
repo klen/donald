@@ -192,10 +192,17 @@ class Donald(AsyncMixin):
                     else:
                         fut.set_result(res)
 
+                # Leave the objects from the closure
+                fut = ident = res = args =None
+
             except Empty:
                 pass
 
             await asyncio.sleep(0)
+
+    def leave(self, fut: asyncio.Future):
+        """Release the given future from waiting list."""
+        self.waiting.pop(id(fut), None)
 
     def submit(self, func, *args, **kwargs):
         """Submit a task to workers.

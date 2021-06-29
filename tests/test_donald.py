@@ -101,6 +101,9 @@ async def test_queue(tmp_path):
             assert queue._started
             assert 42 == await donald.submit(tasks.async_, 42)
             queue.submit(tasks.write_file, str(filepath), 'done')
-            await asyncio.sleep(1e-2)
+            await asyncio.sleep(2e-2)
+
+            queue.submit(tasks.exception)
+            await asyncio.sleep(2e-2)
 
     assert filepath.read_text() == 'done'
