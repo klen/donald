@@ -137,7 +137,7 @@ class Donald(AsyncMixin):
         logger.warning('Stoping Donald')
 
         if self.params.filelock:
-            self.lock.release()
+            self.lock.release(silent=True)
 
         # Stop runner if exists
         if self.listener:

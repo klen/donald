@@ -58,11 +58,15 @@ class FileLock(object):
         self.fh = os.open(self.fname, self.flags)
         os.write(self.fh, bytes(os.getpid()))
 
-    def release(self):
+    def release(self, silent=False):
         """Release the lock."""
-        if self.fh:
-            os.close(self.fh)
-        os.remove(self.fname)
+        try:
+            if self.fh:
+                os.close(self.fh)
+            os.remove(self.fname)
+        except OSError:
+            if not silent:
+                raise
 
     def __enter__(self):
         """Enter in the context."""
