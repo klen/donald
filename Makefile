@@ -62,3 +62,6 @@ rabbit:
 # target: test - Runs tests
 t test: $(VIRTUAL_ENV)
 	@$(VIRTUAL_ENV)/bin/pytest tests
+
+mypy: $(VIRTUAL_ENV)
+	mypy --install-types --non-interactive donald

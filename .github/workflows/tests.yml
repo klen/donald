@@ -43,5 +43,8 @@ jobs:
         env/bin/pip install -e .[tests]
       if: steps.cache-env.outputs.cache-hit != 'true'
 
+    - name: Check types
+      run: env/bin/mypy --install-types --non-interactive donald 
+
     - name: Test with Pytest
       run: env/bin/pytest tests

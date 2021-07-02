@@ -1,6 +1,7 @@
 """Donald Asyncio Tasks."""
 
 import typing as t
+
 import asyncio
 import datetime
 import multiprocessing as mp
@@ -12,7 +13,7 @@ from crontab import CronTab
 
 from . import logger
 from .queue import Queue
-from .utils import AsyncMixin, AttrDict, FileLock, create_task
+from .utils import AsyncMixin, FileLock, create_task
 from .worker import run_worker
 
 
@@ -20,7 +21,7 @@ class Donald(AsyncMixin):
 
     """I'am on Donald."""
 
-    defaults = {
+    defaults: t.Dict[str, t.Any] = {
 
         # Run tasks imediatelly in the same process/thread
         'fake_mode': False,
@@ -52,34 +53,34 @@ class Donald(AsyncMixin):
     }
 
     crontab = CronTab
-    workers = None
-    listener = None
-    queue = None
 
-    _loop = None
+    _loop: t.Optional[asyncio.AbstractEventLoop] = None
     _started = False
 
-    def __init__(self, on_start=None, on_stop=None, **params):
+    rx: t.Optional[mp.Queue] = None
+    tx: t.Optional[mp.Queue] = None
+    workers: t.Optional[t.Tuple[mp.context.SpawnProcess, ...]] = None
+    listener: t.Optional[asyncio.Task] = None
+
+    def __init__(self, on_start: t.Callable = None, on_stop: t.Callable = None, **params):
         """Initialize donald parameters."""
-        self.params = AttrDict(self.defaults)
-        self.params.update(params)
+        self.params = dict(self.defaults, **params)
 
         logger.setLevel(self.params['loglevel'].upper())
         logger.propagate = False
 
-        self.rx = self.tx = None
+        self.lock = FileLock(self.params['filelock'])
+        self.schedules: t.List = []
+        self.waiting: t.Dict[int, asyncio.Future] = {}
 
-        self.lock = FileLock(self.params.filelock)
-        self.schedules = []
-        self.waiting = {}
+        self.queue = Queue(
+            self, **dict(self.params['queue_params'], queue=self.params['queue_name']))
 
-        self.queue = Queue(self, **dict(self.params.queue_params, queue=self.params.queue_name))
-
-    def __str__(self):
+    def __str__(self) -> str:
         """Representate as a string."""
-        return f"Donald [{self.params.num_workers}]"
+        return f"Donald [{self.params['num_workers']}]"
 
-    async def start(self, loop=None):
+    async def start(self, loop: asyncio.AbstractEventLoop = None):
         """Start workers.
 
         :returns: A coroutine
@@ -88,10 +89,10 @@ class Donald(AsyncMixin):
         self._loop = loop or asyncio.get_event_loop()
         self.queue.init_loop(loop)
 
-        if self.params.fake_mode:
+        if self.params['fake_mode']:
             return True
 
-        if self.params.filelock:
+        if self.params['filelock']:
             try:
                 self.lock.acquire()
             except self.lock.Error:
@@ -104,7 +105,7 @@ class Donald(AsyncMixin):
 
         self.workers = tuple(
             ctx.Process(target=run_worker, args=(self.rx, self.tx, self.params))
-            for _ in range(max(self.params.num_workers, 1)))
+            for _ in range(max(self.params['num_workers'], 1)))
 
         # Start workers
         for wrk in self.workers:
@@ -136,7 +137,7 @@ class Donald(AsyncMixin):
 
         logger.warning('Stoping Donald')
 
-        if self.params.filelock:
+        if self.params['filelock']:
             self.lock.release(silent=True)
 
         # Stop runner if exists
@@ -166,7 +167,7 @@ class Donald(AsyncMixin):
         logger.warning('Donald is stopped')
         return True
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> 'Donald':
         """Support usage as a context manager."""
         await self.start()
         return self
@@ -181,9 +182,6 @@ class Donald(AsyncMixin):
         if not callable(func):
             raise ValueError('Invalid task: %r' % func)
 
-        if self.params.fake_mode:
-            return create_task(func, args, kwargs)
-
         if not self._started:
             raise RuntimeError('Donald is not started yet')
 
@@ -194,7 +192,8 @@ class Donald(AsyncMixin):
             self.waiting[ident] = fut
 
         # Send task to workers
-        self.rx.put((ident, func, args, kwargs))
+        rx = t.cast(mp.Queue, self.rx)
+        rx.put((ident, func, args, kwargs))
         return fut
 
     async def listen(self):
@@ -223,22 +222,26 @@ class Donald(AsyncMixin):
 
             await asyncio.sleep(0)
 
-    def submit(self, func: t.Callable, *args, **kwargs):
-        """Submit a task to workers.
+    def submit(self, func: t.Callable, *args, **kwargs) -> asyncio.Future:
+        """Submit a task to workers."""
+        if self.params['fake_mode']:
+            return create_task(func, args, kwargs)
 
-        :returns: asyncio.Future
-        """
         fut = self.loop.create_future()
-        return self.__submit(fut, func, *args, **kwargs)
+        res = self.__submit(fut, func, *args, **kwargs)
+        res = t.cast(asyncio.Future, res)
+        return res
 
     def submit_nowait(self, func: t.Callable, *args, **kwargs):
-        """Submit a task to workers.
+        """Submit a task to workers."""
+        if self.params['fake_mode']:
+            create_task(func, args, kwargs)
 
-        :returns: None
-        """
-        return self.__submit(None, func, *args, **kwargs)
+        else:
+            self.__submit(None, func, *args, **kwargs)
 
-    def schedule(self, interval, *args, **kwargs):
+    def schedule(
+            self, interval: t.Union[int, float, datetime.timedelta, CronTab], *args, **kwargs):
         """Add func to schedules. Use this as a decorator.
 
         Run given func/coro periodically.
@@ -246,13 +249,14 @@ class Donald(AsyncMixin):
         if callable(interval):
             raise RuntimeError('@donald.schedule(interval) should be used.')
 
-        timer = lambda: float(interval) # noqa
-
         if isinstance(interval, datetime.timedelta):
             timer = interval.total_seconds
 
         elif isinstance(interval, CronTab):
-            timer = lambda: interval.next(default_utc=True)  # noqa
+            timer = lambda: interval.next(default_utc=True)  # type: ignore
+
+        else:
+            timer = lambda: float(interval)  # type: ignore
 
         def wrapper(func):
 
@@ -275,20 +279,20 @@ class Donald(AsyncMixin):
 
         return wrapper
 
-    async def run(self, timer=60):
+    async def run(self, tick: int = 60):
         """Keep asyncio busy."""
         while self._started:
             logger.info('Donald is running')
-            await asyncio.sleep(timer)
+            await asyncio.sleep(tick)
 
-    def on_start(self, func, *args, **kwargs):
+    def on_start(self, func: t.Callable, *args, **kwargs) -> t.Callable:
         """Register start handler."""
-        self.params.on_start.append((func, args, kwargs))
+        self.params['on_start'].append((func, args, kwargs))
         return func
 
-    def on_stop(self, func, *args, **kwargs):
+    def on_stop(self, func: t.Callable, *args, **kwargs) -> t.Callable:
         """Register stop handler."""
-        self.params.on_stop.append((func, args, kwargs))
+        self.params['on_stop'].append((func, args, kwargs))
         return func
 
 

@@ -59,7 +59,7 @@ async def test_schedule(tmp_path):
 
 
 async def test_fake_mode(donald):
-    donald.params.fake_mode = True
+    donald.params['fake_mode'] = True
     task = donald.submit(tasks.blocking, 42)
     assert isinstance(task, asyncio.Task)
     res = await task

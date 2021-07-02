@@ -23,16 +23,6 @@ class AsyncMixin:
         return self._loop
 
 
-class AttrDict(dict):
-
-    """Attributes dictionary."""
-
-    def __init__(self, *args, **kw):
-        """Do the magic."""
-        self.__dict__ = self
-        super(AttrDict, self).__init__(*args, **kw)
-
-
 class FileLock(object):
 
     """Simplest filelock implementation."""
