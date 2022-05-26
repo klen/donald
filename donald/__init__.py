@@ -18,7 +18,7 @@ from .core import Donald, run_donald
 
 __all__ = "crontab", "Donald", "run_donald"
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"
 __project__ = "Donald"
 __author__ = "Kirill Klenov <horneds@gmail.com>"
 __license__ = "BSD"
