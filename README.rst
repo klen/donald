@@ -21,6 +21,10 @@ listen AMQP queues.
     :target: https://pypi.org/project/donald/
     :alt: PYPI Version
 
+.. image:: https://img.shields.io/pypi/pyversions/donald
+    :target: https://pypi.org/project/donald/
+    :alt: Python Versions
+
 .. _contents:
 
 .. contents::
@@ -30,7 +34,7 @@ listen AMQP queues.
 Requirements
 =============
 
-- python 3.8+
+- python 3.7+
 
 .. _installation:
 
