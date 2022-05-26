@@ -26,11 +26,6 @@ jobs:
     - name: Checkout changes
       uses: actions/checkout@main
 
-    - name: Set up Python 3.8
-      uses: actions/setup-python@main
-      with:
-        python-version: 3.8
-
     - name: Sleep 2s to make rmq start
       run: sleep 2
 
