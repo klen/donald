@@ -1,7 +1,7 @@
 """Utils."""
 
-import os
 import asyncio as aio
+import os
 from inspect import iscoroutinefunction
 
 
@@ -38,7 +38,7 @@ class FileLock(object):
         self.fname = fname
         self.fh = None
         self.flags = os.O_CREAT | os.O_RDWR
-        for flag in ('O_EXLOCK', 'O_NOINHERIT'):
+        for flag in ("O_EXLOCK", "O_NOINHERIT"):
             self.flags |= getattr(os, flag, 0)
 
     def acquire(self):
@@ -74,6 +74,7 @@ def create_task(func, args, kwargs):
         corofunc = func
 
     else:
+
         async def corofunc(*args, **kwargs):
             return func(*args, **kwargs)
 

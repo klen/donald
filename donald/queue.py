@@ -1,8 +1,7 @@
 """AMPQ support."""
-import typing as t
-
 import asyncio
 import pickle
+import typing as t
 import uuid
 from importlib import import_module
 
@@ -17,13 +16,13 @@ class Queue(AsyncMixin):
     """Support message queue."""
 
     defaults = dict(
-        host='localhost',
+        host="localhost",
         port=None,
-        login='guest',
-        password='guest',
-        virtualhost='/',
-        queue='donald',
-        exchange_name='',
+        login="guest",
+        password="guest",
+        virtualhost="/",
+        queue="donald",
+        exchange_name="",
     )
 
     _started: bool = False
@@ -34,7 +33,7 @@ class Queue(AsyncMixin):
     protocol: t.Optional[aioamqp.protocol.AmqpProtocol] = None
     channel: t.Optional[aioamqp.channel.Channel] = None
 
-    def __init__(self, master: 'Donald', **params):
+    def __init__(self, master: "Donald", **params):
         """Initialize the queue."""
         self.params = dict(self.defaults, **params)
         self.master = master
@@ -48,12 +47,14 @@ class Queue(AsyncMixin):
         """Check that the queue is connected."""
         return self._connected
 
-    async def start(self, listen: bool = True, loop: asyncio.AbstractEventLoop = None) -> bool:
+    async def start(
+        self, listen: bool = True, loop: asyncio.AbstractEventLoop = None
+    ) -> bool:
         """Connect and start listen the message queue."""
-        if self.master.params['fake_mode']:
+        if self.master.params["fake_mode"]:
             return True
 
-        logger.warning('Start Donald Queue')
+        logger.warning("Start Donald Queue")
 
         self.init_loop(loop)
         self._started = True
@@ -61,7 +62,7 @@ class Queue(AsyncMixin):
         await self.connect()
         if listen:
             channel = t.cast(aioamqp.channel.Channel, self.channel)
-            await channel.basic_consume(self.listen, queue_name=self.params['queue'])
+            await channel.basic_consume(self.listen, queue_name=self.params["queue"])
 
         return self._started
 
@@ -76,9 +77,9 @@ class Queue(AsyncMixin):
         self.transport.close()
         self._connected = False
 
-        logger.warning('Donald Queue is stopped')
+        logger.warning("Donald Queue is stopped")
 
-    async def __aenter__(self) -> 'Queue':
+    async def __aenter__(self) -> "Queue":
         """Support usage as a context manager."""
         await self.start()
         return self
@@ -90,15 +91,21 @@ class Queue(AsyncMixin):
     async def connect(self) -> bool:
         """Connect to queue."""
         if not self._connected:
-            logger.warning('Connect to queue: %r', self.params)
+            logger.warning("Connect to queue: %r", self.params)
             try:
-                self.transport, self.protocol = await asyncio.wait_for(aioamqp.connect(
-                    loop=self._loop, on_error=self.on_error, **self.params), timeout=10
+                self.transport, self.protocol = await asyncio.wait_for(
+                    aioamqp.connect(
+                        loop=self._loop, on_error=self.on_error, **self.params
+                    ),
+                    timeout=10,
                 )
                 self.channel = await self.protocol.channel()
-                await self.channel.queue_declare(queue_name=self.params['queue'], durable=True)
+                await self.channel.queue_declare(
+                    queue_name=self.params["queue"], durable=True
+                )
                 await self.channel.basic_qos(
-                    prefetch_count=1, prefetch_size=0, connection_global=False)
+                    prefetch_count=1, prefetch_size=0, connection_global=False
+                )
                 self._connected = True
 
             except Exception as exc:
@@ -116,7 +123,7 @@ class Queue(AsyncMixin):
 
     def submit(self, func: t.Callable, *args, **kwargs) -> asyncio.Future:
         """Submit to the queue."""
-        if self.master.params['fake_mode']:
+        if self.master.params["fake_mode"]:
             return self.master.submit(func, *args, **kwargs)
 
         logger.info("Submit to queue: '%s'", func.__qualname__)
@@ -125,24 +132,32 @@ class Queue(AsyncMixin):
         properties = dict(delivery_mode=2, message_id=str(uuid.uuid4()))
 
         if not self._connected:
-            logger.warning('Donald Queue is not connected')
+            logger.warning("Donald Queue is not connected")
             fut: asyncio.Future = asyncio.Future()
             fut.set_result(False)
             return fut
 
         channel = t.cast(aioamqp.channel.Channel, self.channel)
-        return asyncio.create_task(channel.basic_publish(
-            payload=payload, exchange_name=self.params['exchange_name'],
-            routing_key=self.params['queue'], properties=properties
-        ))
+        return asyncio.create_task(
+            channel.basic_publish(
+                payload=payload,
+                exchange_name=self.params["exchange_name"],
+                routing_key=self.params["queue"],
+                properties=properties,
+            )
+        )
 
     async def listen(
-            self, channel: aioamqp.channel.Channel, body: bytes,
-            envelope: aioamqp.envelope.Envelope, properties: aioamqp.properties.Properties):
+        self,
+        channel: aioamqp.channel.Channel,
+        body: bytes,
+        envelope: aioamqp.envelope.Envelope,
+        properties: aioamqp.properties.Properties,
+    ):
         """Run tasks from self.queue."""
         func, args, kwargs = pickle.loads(body)
         if isinstance(func, str):
-            mod_name, _, func = func.rpartition('.')
+            mod_name, _, func = func.rpartition(".")
             try:
                 mod = import_module(mod_name)
                 func = getattr(mod, func)

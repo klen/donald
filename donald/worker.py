@@ -2,9 +2,9 @@
 
 import asyncio
 import signal
+from contextlib import contextmanager
 from functools import partial
 from queue import Empty
-from contextlib import contextmanager
 
 from . import logger
 from .utils import create_task
@@ -28,14 +28,14 @@ class Worker:
         self.tasks = 0
         self.running = False
 
-        if params['sentry']:
+        if params["sentry"]:
             from sentry_sdk import init
 
-            init(**params['sentry'])
+            init(**params["sentry"])
 
     def run(self):
         """Wait for a command and do the job."""
-        logger.setLevel(self.params['loglevel'].upper())
+        logger.setLevel(self.params["loglevel"].upper())
         loop = asyncio.events.new_event_loop()
         asyncio.events.set_event_loop(loop)
 
@@ -49,8 +49,8 @@ class Worker:
 
     async def listen(self):
         """Listen for tasks and run."""
-        logger.info('Start worker: loop %s', id(asyncio.get_event_loop()))
-        await self.handle('on_start')
+        logger.info("Start worker: loop %s", id(asyncio.get_event_loop()))
+        await self.handle("on_start")
         self.running = True
 
         rx = self.rx
@@ -60,7 +60,7 @@ class Worker:
         self.tx.put(True)
 
         while self.running:
-            if self.tasks < params['max_tasks_per_worker']:
+            if self.tasks < params["max_tasks_per_worker"]:
                 try:
                     message = rx.get(block=False)
                     if message is None:
@@ -79,10 +79,12 @@ class Worker:
             await asyncio.sleep(1e-2)
 
         # Stop the runner
-        logger.info('Stop worker')
-        await self.handle('on_stop')
+        logger.info("Stop worker")
+        await self.handle("on_stop")
 
-        tasks = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
+        tasks = [
+            task for task in asyncio.all_tasks() if task is not asyncio.current_task()
+        ]
         if tasks:
             await asyncio.sleep(1)
 
@@ -120,7 +122,7 @@ def catch_exc(worker: Worker):
         yield worker
     except BaseException as exc:
         logger.exception(exc)
-        if worker.params['sentry']:
+        if worker.params["sentry"]:
             from sentry_sdk import capture_exception
 
             capture_exception(exc)

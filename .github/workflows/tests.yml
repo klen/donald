@@ -13,6 +13,10 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.7', '3.8', '3.9', '3.10']
+
     services:
       rmq:
         image: rabbitmq
@@ -30,21 +34,17 @@ jobs:
     - name: Sleep 2s to make rmq start
       run: sleep 2
 
-    - name: Use cache
-      id: cache-env
-      uses: actions/cache@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@main
       with:
-        path: env
-        key: ${{ runner.os }}-env-${{ hashFiles('setup.cfg') }}
+        python-version: ${{ matrix.python-version }}
+        cache: pip
 
-    - name: Setup requirements
-      run: |
-        python -m venv env
-        env/bin/pip install -e .[tests]
-      if: steps.cache-env.outputs.cache-hit != 'true'
+    - name: Setup dependencies
+      run: pip install .[tests]
 
     - name: Check types
-      run: env/bin/mypy --install-types --non-interactive donald 
+      run: mypy --install-types --non-interactive donald 
 
     - name: Test with Pytest
-      run: env/bin/pytest tests
+      run: pytest tests

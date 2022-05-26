@@ -46,7 +46,7 @@ major:
 #  Development
 # =============
 
-$(VIRTUAL_ENV): $(CURDIR)/setup.cfg
+$(VIRTUAL_ENV): $(CURDIR)/requirements/requirements.txt $(CURDIR)/requirements/requirements-tests.txt
 	python -m venv $(VIRTUAL_ENV)
 	$(VIRTUAL_ENV)/bin/pip install -e .[tests]
 	touch $(VIRTUAL_ENV)
