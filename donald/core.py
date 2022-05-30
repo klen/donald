@@ -5,7 +5,6 @@ import datetime
 import multiprocessing as mp
 import signal
 import typing as t
-from functools import wraps
 from queue import Empty
 
 from crontab import CronTab
@@ -111,7 +110,7 @@ class Donald(AsyncMixin):
 
         # Start schedulers
         for idx, schedule in enumerate(self.schedules):
-            logger.info("Schedule '%s'", schedule.__qualname__)
+            logger.info(f"Schedule '{schedule.__qualname__}'")
             self.schedules[idx] = asyncio.create_task(schedule())
 
         # Mark self started
@@ -180,7 +179,7 @@ class Donald(AsyncMixin):
         if not self._started:
             raise RuntimeError("Donald is not started yet")
 
-        logger.debug("Submit: '%s'", func.__qualname__)
+        logger.debug("Submit: '{func.__qualname__}'")
         ident = None
         if fut:
             ident = id(fut)
@@ -258,19 +257,12 @@ class Donald(AsyncMixin):
             timer = lambda: float(interval)  # type: ignore
 
         def wrapper(func):
-            async def catcher():
-                try:
-                    await self.submit_nowait(func, *args, **kwargs)
-                except Exception:
-                    pass
-
-            @wraps(func)
             async def scheduler():
                 while True:
-                    sleep = max(timer(), 0.01)
+                    sleep = max(timer(), 1e-2)
                     logger.info("Next '%s' in %0.2f s", func.__qualname__, sleep)
                     await asyncio.sleep(sleep)
-                    asyncio.create_task(catcher())
+                    self.submit_nowait(func, *args, **kwargs)
 
             self.schedules.append(scheduler)
             return func
