@@ -247,6 +247,9 @@ class Donald(AsyncMixin):
         if callable(interval):
             raise RuntimeError("@donald.schedule(interval) should be used.")
 
+        if isinstance(interval, str) and " " in interval:
+            interval = CronTab(interval)
+
         if isinstance(interval, datetime.timedelta):
             timer = interval.total_seconds
 

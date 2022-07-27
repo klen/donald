@@ -58,6 +58,9 @@ async def test_schedule(tmp_path):
 
     await donald.stop()
 
+    donald.schedule("0 * * * *", 1)(asyncio.sleep)
+    assert donald.schedules
+
 
 async def test_fake_mode(donald):
     donald.params["fake_mode"] = True
