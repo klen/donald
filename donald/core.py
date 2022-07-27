@@ -5,6 +5,7 @@ import datetime
 import multiprocessing as mp
 import signal
 import typing as t
+from functools import wraps
 from queue import Empty
 
 from crontab import CronTab
@@ -179,7 +180,7 @@ class Donald(AsyncMixin):
         if not self._started:
             raise RuntimeError("Donald is not started yet")
 
-        logger.debug("Submit: '{func.__qualname__}'")
+        logger.debug(f"Submit: '{func.__qualname__}'")
         ident = None
         if fut:
             ident = id(fut)
@@ -260,6 +261,7 @@ class Donald(AsyncMixin):
             timer = lambda: float(interval)  # type: ignore
 
         def wrapper(func):
+            @wraps(func)
             async def scheduler():
                 while True:
                     sleep = max(timer(), 1e-2)
