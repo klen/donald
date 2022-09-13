@@ -33,9 +33,14 @@ class Worker:
 
             init(**params["sentry"])
 
+        logger.setLevel(self.params["loglevel"].upper())
+        if params["logconfig"]:
+            import logging.config
+
+            logging.config.dictConfig(params["logconfig"])
+
     def run(self):
         """Wait for a command and do the job."""
-        logger.setLevel(self.params["loglevel"].upper())
         loop = asyncio.events.new_event_loop()
         asyncio.events.set_event_loop(loop)
 

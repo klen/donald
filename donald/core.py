@@ -31,6 +31,8 @@ class Donald(AsyncMixin):
         "filelock": None,
         # logging level
         "loglevel": "INFO",
+        # logging config
+        "logconfig": None,
         # Start handlers
         "on_start": [],
         # Stop handlers
