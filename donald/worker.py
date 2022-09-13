@@ -4,6 +4,7 @@ import asyncio
 import signal
 from contextlib import contextmanager
 from functools import partial
+from logging.config import dictConfig
 from queue import Empty
 
 from . import logger
@@ -33,14 +34,14 @@ class Worker:
 
             init(**params["sentry"])
 
-        logger.setLevel(self.params["loglevel"].upper())
-        if params["logconfig"]:
-            import logging.config
-
-            logging.config.dictConfig(params["logconfig"])
-
     def run(self):
         """Wait for a command and do the job."""
+
+        # Setup logging
+        logger.setLevel(self.params["loglevel"].upper())
+        if self.params["logconfig"]:
+            dictConfig(self.params["logconfig"])
+
         loop = asyncio.events.new_event_loop()
         asyncio.events.set_event_loop(loop)
 
