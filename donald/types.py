@@ -1,5 +1,5 @@
 from numbers import Number
-from typing import Any, Awaitable, Callable, Literal, Optional, Tuple, TypedDict
+from typing import Any, Awaitable, Callable, Coroutine, Literal, Optional, Tuple, TypedDict
 
 TBackendType = Literal["memory", "redis", "amqp"]
 
@@ -21,7 +21,7 @@ TWorkerParams = TypedDict(
         "task_defaults": Optional[TTaskParams],
         "on_start": Optional[Callable[[], Awaitable]],
         "on_stop": Optional[Callable[[], Awaitable]],
-        "on_error": Optional[Callable[[BaseException], Awaitable]],
+        "on_error": Optional[Callable[[BaseException], Coroutine]],
         # "timeout": Number,
         # "task_retry": int,
         # "task_retry_delay": Number,
