@@ -3,9 +3,8 @@ Donald
 
 .. _description:
 
-Donald -- A simple task engine for Asyncio.
+Donald -- A fast and simple tasks manager for Asyncio.
 
-The main goal for Donald to run async/sync code without blocking main loop.
 
 Donald supports synchronous and asynchronous paradigms. The package is running
 coroutines and functions in multi loops. Donald could run periodic tasks and
@@ -45,100 +44,128 @@ Installation
 
     pip install donald
 
+With redis support: ::
+
+    pip install donald[redis]
+
 .. _usage:
 
-Usage
-=====
+Quick Start
+===========
 
-From shell: ::
-
-    $ donald --help
-
-
-From asynchronous python code:
+Init the tasks manager:
 
 .. code:: python
 
     # Init Donald
-    donald = Donald(
+    tasks = Donald(
+
         # Params (default values)
         # -----------------------
 
-        # Run tasks imediatelly in the same process/thread
-        fake_mode=False,
+        # Setup logging
+        log_level=logging.INFO,
+        log_config=None,
 
-        # Number of workers
-        num_workers=multiprocessing.cpu_count() - 1,
+        # Choose a backend (memory|redis|amqp)
+        # memory - is only recommended for testing/local development
+        backend='memory',
 
-        # Maximum concurent tasks per worker
-        max_tasks_per_worker=100,
+        # Backend connection params
+        # redis: {'url': 'redis://localhost:6379/0', 'channel': 'donald'}
+        # amqp: {'url': 'amqp://guest:guest@localhost:5672/', 'queue': 'donald', 'exchange': 'donald'}
+        backend_params={},
 
-        # Ensure that the Donald starts only once (set to filename to lock)
-        filelock=None,
+        # Tasks worker params
+        worker_params={
+          # Max tasks in work
+          'max_tasks': 0,
 
-        # logging level
-        loglevel='INFO',
+          # Tasks default params (delay, timeout)
+          'task_defaults': {},
 
-        # AMQP params
-        queue=False,
-        queue_name='donald',
-        queue_params={},
+          # A awaitable function to run on worker start
+          'on_start': None
+
+          # A awaitable function to run on worker stop
+          'on_stop': None
+
+          # A awaitable function to run on worker error
+          'on_error': None
+
+        },
     )
 
-    # Schedule periodic tasks
-    @donald.schedule(crontab_string | seconds_float | datetime_timedelta, *args, **kwargs)
-    async def task(*args, **kwargs):
-        # ...
+    # Wrap a function to task
+    @tasks.task
+    async def myfunc(*args, **kwargs):
+        # Do some job here
 
-    # Start the donald
-    await donald.start()
+    # Start the manager somewhere (on app start for example)
+    await tasks.start()
 
-    # ...
-
-    # Submit a task to donald
-    donald.submit(corofunction or function, *args, **kwargs)
-
-    # Submit and wait for result
-    result = await donald.submit(corofunction or function, *args, **kwargs)
-
-    # Submit a task to queue
-    queue.submit(corofunction or function, *args, **kwargs)
-    await donald.queue.submit(corofunction or function, *args, **kwargs)
-
-    # note: queue dont support waiting for results
+    # you may run a worker in the same process
+    # not recommended for production
+    worker = donald.create_worker()
+    worker.start()
 
     # ...
 
-    # Stop the donald
-    await donald.stop()
+    # Submit the task to workers
+    myfunc.submit(*args, **kwargs)
 
-Connect and receive tasks using AMQP
-------------------------------------
+    # ...
+
+    # Stop the manager when you need
+    await worker.stop()
+    await tasks.stop()
+
+
+Schedule tasks
+===============
 
 .. code:: python
 
-    donald = Donald()
+  @tasks.schedule('*/5 * * * *')  # Supports cron expressions, number of seconds, timedelta
+  @tasks.task
+  async def myfunc(*args, **kwargs):
+      """Run every 5 minutes"""
+      # Do some job here
 
-    await donald.start()
-    await donald.queue.start()
 
-    # ...
+  # you may run a scheduler in the same process
+  # not recommended for production
+  tasks.scheduler.start()
+
+  # ...
+
+  # Stop the scheduler before stop the tasks manager
+  tasks.scheduler.stop()
 
 
-    # Stop the donald
-    await donald.queue.stop()
-    await donald.stop()
+Run in production
+=================
 
-Submit tasks to AMQP
---------------------
+Create a tasks manager somewhere in your app `tasks.py`:
 
-.. code::
+.. code:: python
 
-    # Send task to queue
-    await donald.queue.submit(<coro or func>, *args, **kwargs)
+  tasks = Donald(backend='amqp')
 
-    # ...
+  # Setup your tasks and schedules.
+  # See the Quick Start section for details.
 
+Run a worker in a separate process:
+
+.. code:: bash
+
+   $ donald -M tasks:tasks worker
+
+Run a scheduler (if you need) in a separate process:
+
+.. code:: bash
+
+   $ donald -M tasks:tasks scheduler
 
 .. _bugtracker:
 

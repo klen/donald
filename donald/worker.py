@@ -1,134 +1,155 @@
-"""Do the work."""
+from __future__ import annotations
 
-import asyncio
-import signal
-from contextlib import contextmanager
-from functools import partial
-from logging.config import dictConfig
-from queue import Empty
+import os
+from asyncio.exceptions import CancelledError
+from asyncio.locks import Event, Semaphore
+from asyncio.tasks import Task, create_task, gather, sleep
+from inspect import iscoroutinefunction
+from numbers import Number
+from typing import AsyncIterator, Callable, Iterable, Set, cast
 
-from . import logger
-from .utils import create_task
+from async_timeout import timeout as async_timeout
 
-
-def run_worker(rx, tx, params):
-    """Create and run a worker inside a process."""
-    worker = Worker(rx, tx, params)
-    return worker.run()
+from . import __version__, logger
+from .backend import BaseBackend
+from .types import TRunArgs, TTaskParams, TWorkerParams
 
 
 class Worker:
+    defaults: TWorkerParams = {
+        "max_tasks": 0,
+        "task_defaults": None,
+        "on_start": None,
+        "on_stop": None,
+        "on_error": None,
+    }
 
-    """Put a job into a separate process."""
+    def __init__(self, backend: BaseBackend, params: TWorkerParams):
+        self._backend = backend
+        self._runner = None
+        self._params = cast(TWorkerParams, dict(self.defaults, **params))
+        self._task_params = cast(TTaskParams, self._params["task_defaults"] or {})
 
-    def __init__(self, rx, tx, params):
-        """Initialize the worker."""
-        self.rx = rx
-        self.tx = tx
-        self.params = params
-        self.tasks = 0
-        self.running = False
+        self.on_error = self._params.get("on_error")
 
-        if params["sentry"]:
-            from sentry_sdk import init
+        max_tasks = self._params["max_tasks"]
+        self._sem = max_tasks and Semaphore(max_tasks - 1)
 
-            init(**params["sentry"])
+        self._tasks: Set[Task] = set()
+        self._finished = Event()
 
-    def run(self):
-        """Wait for a command and do the job."""
+    def start(self):
+        """Start the worker."""
+        logger.info(
+            f"""
 
-        # Setup logging
-        logger.setLevel(self.params["loglevel"].upper())
-        if self.params["logconfig"]:
-            dictConfig(self.params["logconfig"])
+$$$$$$$\                                $$\       $$\ 
+$$  __$$\                               $$ |      $$ |
+$$ |  $$ | $$$$$$\  $$$$$$$\   $$$$$$\  $$ | $$$$$$$ |
+$$ |  $$ |$$  __$$\ $$  __$$\  \____$$\ $$ |$$  __$$ |
+$$ |  $$ |$$ /  $$ |$$ |  $$ | $$$$$$$ |$$ |$$ /  $$ |
+$$ |  $$ |$$ |  $$ |$$ |  $$ |$$  __$$ |$$ |$$ |  $$ |
+$$$$$$$  |\$$$$$$  |$$ |  $$ |\$$$$$$$ |$$ |\$$$$$$$ |
+\_______/  \______/ \__|  \__| \_______|\__| \_______|
+                                                      
+Version: {__version__}
+Backend: {self._backend.type}
+Starting worker: {os.getpid()}
 
-        loop = asyncio.events.new_event_loop()
-        asyncio.events.set_event_loop(loop)
+"""
+        )
+        self._finished.clear()
+        self._runner = create_task(self.run_worker())
 
-        def stop():
-            self.running = False
-
-        loop.add_signal_handler(signal.SIGINT, stop)
-        loop.add_signal_handler(signal.SIGTERM, stop)
-
-        loop.run_until_complete(self.listen())
-
-    async def listen(self):
-        """Listen for tasks and run."""
-        logger.info("Start worker: loop %s", id(asyncio.get_event_loop()))
-        await self.handle("on_start")
-        self.running = True
-
-        rx = self.rx
-        params = self.params
-
-        # Mark self as a ready
-        self.tx.put(True)
-
-        while self.running:
-            if self.tasks < params["max_tasks_per_worker"]:
-                try:
-                    message = rx.get(block=False)
-                    if message is None:
-                        self.running = False
-                        break
-
-                    ident, func, args, kwargs = message
-                    logger.info("Run: '%s'", func.__qualname__)
-                    task = create_task(func, args, kwargs)
-                    task.add_done_callback(partial(self.done, ident))
-                    self.tasks += 1
-
-                except Empty:
-                    pass
-
-            await asyncio.sleep(1e-2)
-
-        # Stop the runner
-        logger.info("Stop worker")
-        await self.handle("on_stop")
-
-        tasks = [
-            task for task in asyncio.all_tasks() if task is not asyncio.current_task()
-        ]
-        if tasks:
-            await asyncio.sleep(1)
-
-        for task in tasks:
+    async def stop(self):
+        """Stop the worker."""
+        logger.info("Stopping worker")
+        for task in self._tasks:
             task.cancel()
 
-    def done(self, ident, task):
-        """Send the task's result back to main."""
-        with catch_exc(self):
-            try:
-                res = task.exception()
-                if res is not None:
-                    raise res
+        if self._runner and not self._runner.done():
+            self._runner.add_done_callback(lambda _: self._finished.set())
+            self._runner.cancel()
 
-                res = task.result()
+        await self.join()
 
-            except (asyncio.CancelledError, asyncio.InvalidStateError) as res:
-                raise res
+        on_stop = self._params.get("on_stop")
+        if on_stop:
+            await on_stop()
 
-        self.tasks -= 1
-        if ident:
-            self.tx.put((ident, res))
+        self._finished.set()
 
-    async def handle(self, etype):
-        """Run handlers."""
-        for (func, args, kwargs) in self.params.get(etype, []):
-            with catch_exc(self):
-                await create_task(func, args, kwargs)
+    def wait(self):
+        return self._finished.wait()
 
+    async def run_worker(self):
+        on_start = self._params.get("on_start")
+        if on_start:
+            await on_start()
 
-@contextmanager
-def catch_exc(worker: Worker):
-    """Catch exceptions."""
-    try:
-        yield worker
-    except BaseException as exc:
-        logger.exception(exc)
-        if worker.params["sentry"]:
-            from sentry_sdk import capture_exception
+        logger.info("Worker started")
+        task_iter: AsyncIterator[TRunArgs] = await self._backend.subscribe()
+        sem, tasks, finish_task = self._sem, self._tasks, self.finish_task
+        async for task_msg in task_iter:
+            fn, args, kwargs, params = task_msg
+            params = dict(self._task_params, **params)
+            task = create_task(
+                self.run_task(fn, args, kwargs, **params), name=fn.__qualname__
+            )
+            task.add_done_callback(finish_task)
+            tasks.add(task)
+            logger.info("Run: '%s' (%d)", fn.__qualname__, id(task))
+            if sem:
+                await sem.acquire()
 
-            capture_exception(exc)
+    async def run_task(
+        self,
+        func: Callable,
+        args: Iterable,
+        kwargs: dict,
+        timeout: Number = None,
+        delay: Number = None,
+        **params,
+    ):
+        if iscoroutinefunction(func):
+            corofunc = func
+
+        else:
+
+            async def corofunc(*args, **kwargs):
+                return func(*args, **kwargs)
+
+        # Process delay
+        if delay:
+            await sleep(cast(float, delay))
+
+        # Process timeout
+        if timeout:
+            async with async_timeout(cast(float, timeout)):
+                return corofunc(*args, **kwargs)
+
+        return await corofunc(*args, **kwargs)
+
+    def finish_task(self, task: Task):
+        try:
+            exc = task.exception()
+            if exc:
+                logger.exception(
+                    "Fail: '%s' (%d)", task.get_name(), id(task), exc_info=exc
+                )
+                if self.on_error:
+                    create_task(self.on_error(exc))
+        except CancelledError:
+            pass
+
+        self._tasks.remove(task)
+        if self._sem:
+            self._sem.release()
+        logger.info("Done: '%s' (%d)", task.get_name(), id(task))
+
+    async def join(self):
+        """Wait for all tasks to complete."""
+        tasks = self._tasks
+        if tasks:
+            logger.info("Waiting for %d tasks to complete", len(self._tasks))
+            return await gather(*tasks, return_exceptions=True)

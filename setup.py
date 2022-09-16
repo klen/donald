@@ -21,6 +21,7 @@ from setuptools import setup
 setup(
     install_requires=parse_requirements("requirements/requirements.txt"),
     extras_require={
+        "redis": parse_requirements("requirements/requirements-redis.txt"),
         "tests": parse_requirements("requirements/requirements-tests.txt"),
         "build": ["bump2version", "wheel"],
     },

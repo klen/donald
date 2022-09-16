@@ -1,32 +1,96 @@
-"""CLI Support."""
+from __future__ import annotations
 
-from importlib import import_module
+import asyncio
+import importlib
+import signal
+from functools import wraps
 
 import click
 
-from .core import Donald, run_donald
+
+def import_manager(path: str) -> Donald:
+    """Import a manager from a python path."""
+    mod_name, _, manager = path.partition(":")
+
+    try:
+        mod = importlib.import_module(mod_name)
+        return getattr(mod, manager or "manager", None) or getattr(mod, "tasks")
+    except (ImportError, AttributeError) as exc:
+        raise ImportError(f"Manager '{path}' not found") from exc
 
 
-@click.command()
-@click.option("--listen", help="Listen the given AMPQ URL.")
+def process_await(fn):
+    @wraps(fn)
+    @click.pass_context
+    def wrapper(ctx, *args, **kwargs):
+        loop = ctx.obj["loop"]
+        return loop.run_until_complete(fn(ctx, *args, **kwargs))
+
+    return wrapper
+
+
+@click.group()
 @click.option(
-    "--workers", default=Donald.defaults["num_workers"], help="Number of workers."
+    "-M", "--manager", "manager", required=True, help="Python path to the manager"
 )
-@click.option("--loglevel", default=Donald.defaults["loglevel"], help="Logging level.")
-@click.option("--module", help="Load module.")
-def main(workers=4, loglevel="info", module=None, **kw):
-    """Run Donald server."""
-    donald = Donald(num_workers=workers, loglevel=loglevel)
+@click.pass_context
+def cli(ctx, manager):
+    ctx.obj["manager"] = import_manager(manager)
 
-    if module:
-        try:
-            click.echo("Import module: %s" % module)
-            import_module(module)
-        except ImportError:
-            click.echo("Invalid module: %s" % module)
 
-    run_donald(donald)
+@cli.command(help="Launch a worker")
+@process_await
+async def worker(ctx, **params):
+    """Launch a worker."""
+
+    loop = ctx.obj["loop"]
+
+    async def stop():
+        loop.remove_signal_handler(signal.SIGTERM)
+        loop.remove_signal_handler(signal.SIGINT)
+        await worker.stop()
+        await manager.stop()
+
+    loop.add_signal_handler(signal.SIGINT, lambda: loop.create_task(stop()))
+    loop.add_signal_handler(signal.SIGTERM, lambda: loop.create_task(stop()))
+
+    manager: Donald = ctx.obj["manager"]
+    await manager.start()
+
+    worker = manager.create_worker(**params)
+    worker.start()
+
+    await worker.wait()
+
+
+@cli.command(help="Launch a scheduler")
+@process_await
+async def scheduler(ctx, **params):
+
+    loop = ctx.obj["loop"]
+
+    async def stop():
+        loop.remove_signal_handler(signal.SIGTERM)
+        loop.remove_signal_handler(signal.SIGINT)
+        await manager.scheduler.stop()
+        await manager.stop()
+
+    loop.add_signal_handler(signal.SIGINT, lambda: loop.create_task(stop()))
+    loop.add_signal_handler(signal.SIGTERM, lambda: loop.create_task(stop()))
+
+    manager: Donald = ctx.obj["manager"]
+    await manager.start()
+
+    manager.scheduler.start()
+    await manager.scheduler.wait()
+
+
+def main():
+    loop = asyncio.get_event_loop()
+    cli(obj={"loop": loop})
 
 
 if __name__ == "__main__":
     main()
+
+from donald.core import Donald

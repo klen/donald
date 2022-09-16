@@ -1,321 +1,108 @@
-"""Donald Asyncio Tasks."""
+from __future__ import annotations
 
-import asyncio
-import datetime
-import multiprocessing as mp
-import signal
-import typing as t
 from functools import wraps
-from queue import Empty
-
-from crontab import CronTab
+from logging.config import dictConfig
+from typing import Callable, TypeVar, cast, overload
 
 from . import logger
-from .queue import Queue
-from .utils import AsyncMixin, FileLock, create_task
-from .worker import run_worker
+from .backend import BACKENDS, BaseBackend
+from .types import TManagerParams, TTaskParams, TWorkerParams
+from .worker import Worker
 
 
-class Donald(AsyncMixin):
+class Donald:
+    """Manage tasks and workers."""
 
-    """I'am on Donald."""
-
-    defaults: t.Dict[str, t.Any] = {
-        # Run tasks imediatelly in the same process/thread
-        "fake_mode": False,
-        # Number of workers
-        "num_workers": mp.cpu_count() - 1,
-        # Maximum concurent tasks per worker
-        "max_tasks_per_worker": 100,
-        # Ensure that the Donald starts only once
-        "filelock": None,
-        # logging level
-        "loglevel": "INFO",
-        # logging config
-        "logconfig": None,
-        # Start handlers
-        "on_start": [],
-        # Stop handlers
-        "on_stop": [],
-        # AMQP params
-        "queue_name": "donald",
-        "queue_params": {},
-        # Sentry options ({'dsn': '...'})
-        "sentry": None,
+    defaults: TManagerParams = {
+        "log_level": "INFO",
+        "log_config": None,
+        "backend": "memory",
+        "backend_params": {},
+        "worker_params": cast(TWorkerParams, {}),
     }
 
-    crontab = CronTab
+    _backend: BaseBackend
 
-    _loop: t.Optional[asyncio.AbstractEventLoop] = None
-    _started = False
+    def __init__(self, **params):
+        self._params: TManagerParams = self.defaults
+        self.is_started = False
+        self.setup(**params)
+        self.scheduler = Scheduler()
 
-    rx: t.Optional[mp.Queue] = None
-    tx: t.Optional[mp.Queue] = None
-    workers: t.Optional[t.Tuple[mp.context.SpawnProcess, ...]] = None
-    listener: t.Optional[asyncio.Task] = None
+    def __repr__(self):
+        return f"<Donald {self._params['backend']}>"
 
-    def __init__(
-        self, on_start: t.Callable = None, on_stop: t.Callable = None, **params
-    ):
-        """Initialize donald parameters."""
-        self.params = dict(self.defaults, **params)
+    def setup(self, **params):
+        """Setup the manager."""
+        if self.is_started:
+            raise RuntimeError("Manager is already started")
 
-        logger.setLevel(self.params["loglevel"].upper())
-        logger.propagate = False
-
-        self.lock = FileLock(self.params["filelock"])
-        self.schedules: t.List = []
-        self.waiting: t.Dict[int, asyncio.Future] = {}
-
-        self.queue = Queue(
-            self, **dict(self.params["queue_params"], queue=self.params["queue_name"])
+        self._params: TManagerParams = dict(self._params, **params)
+        self._backend = BACKENDS[self._params["backend"]](
+            self._params["backend_params"]
         )
 
-    def __str__(self) -> str:
-        """Representate as a string."""
-        return f"Donald [{self.params['num_workers']}]"
+        logger.setLevel(self._params["log_level"].upper())
+        if self._params["log_config"]:
+            dictConfig(self.params["log_config"])
 
-    async def start(self, loop: asyncio.AbstractEventLoop = None):
-        """Start workers.
+    async def start(self):
+        """Start the manager."""
+        logger.info("Starting manager")
+        await self._backend.connect()
+        self.is_started = True
 
-        :returns: A coroutine
-        """
-        logger.warning("Start Donald: loop %s", id(asyncio.get_event_loop()))
-        self._loop = loop or asyncio.get_event_loop()
-        self.queue.init_loop(loop)
+    async def stop(self):
+        logger.info("Stopping manager")
+        await self._backend.disconnect()
+        self.is_started = False
+        logger.info("Manager stopped")
 
-        if self.params["fake_mode"]:
-            return True
+    def create_worker(self):
+        """Create a worker."""
+        worker_params = self._params["worker_params"]
+        return Worker(self._backend, worker_params)
 
-        if self.params["filelock"]:
-            try:
-                self.lock.acquire()
-            except self.lock.Error:
-                logger.warning("Donald is locked. Exit.")
-                return
-
-        ctx = mp.get_context("spawn")
-        self.rx = ctx.Queue()
-        self.tx = ctx.Queue()
-
-        self.workers = tuple(
-            ctx.Process(target=run_worker, args=(self.rx, self.tx, self.params))
-            for _ in range(max(self.params["num_workers"], 1))
-        )
-
-        # Start workers
-        for wrk in self.workers:
-            wrk.start()
-            self.tx.get(block=True)
-
-        # Start listener
-        self.listener = asyncio.create_task(self.listen())
-
-        # Start schedulers
-        for idx, schedule in enumerate(self.schedules):
-            logger.info(f"Schedule '{schedule.__qualname__}'")
-            self.schedules[idx] = asyncio.create_task(schedule())
-
-        # Mark self started
-        self._started = True
-
-        return True
-
-    async def stop(self, *args, **kwargs):
-        """Stop workers. Disconnect from queue. Cancel schedules.
-
-        The method could be called syncroniously too.
-
-        :returns: A future
-        """
-        if self.is_closed() or not self._started:
-            return
-
-        logger.warning("Stoping Donald")
-
-        if self.params["filelock"]:
-            self.lock.release(silent=True)
-
-        # Stop runner if exists
-        if self.listener:
-            self.listener.cancel()
-
-        # Stop schedules
-        for task in self.schedules:
-            task.cancel()
-
-        # Stop workers
-        for wrk in self.workers:
-            self.rx.put(None)
-
-        for wrk in self.workers:
-            wrk.join(1)
-            wrk.terminate()
-
-        self.rx.close()
-        self.tx.close()
-
-        self._started = False
-
-        if self.listener and not self.listener.done():
-            await asyncio.sleep(1e-2)
-
-        logger.warning("Donald is stopped")
-        return True
-
-    async def __aenter__(self) -> "Donald":
-        """Support usage as a context manager."""
+    async def __aenter__(self):
         await self.start()
         return self
 
-    async def __aexit__(self, *args):
-        """Support usage as a context manager."""
+    async def __aexit__(self, exc_type, exc, tb):
         await self.stop()
 
-    def __submit(
-        self, fut: t.Optional[asyncio.Future], func: t.Callable, *args, **kwargs
-    ) -> t.Optional[asyncio.Future]:
-        """Submit the given task to workers."""
-        if not callable(func):
-            raise ValueError("Invalid task: %r" % func)
+    def schedule(self, interval: TInterval):
+        """Schedule a task to the backend."""
+        return self.scheduler.schedule(interval)
 
-        if not self._started:
-            raise RuntimeError("Donald is not started yet")
+    @overload
+    def task(self, **params) -> TWrapper:
+        ...
 
-        logger.debug(f"Submit: '{func.__qualname__}'")
-        ident = None
-        if fut:
-            ident = id(fut)
-            self.waiting[ident] = fut
+    @overload
+    def task(self, fn: Callable) -> TaskWrapper:
+        ...
 
-        # Send task to workers
-        rx = t.cast(mp.Queue, self.rx)
-        rx.put((ident, func, args, kwargs))
-        return fut
+    def task(self, fn: Callable = None, **params):
+        """Decorator to wrap a function into a Task object."""
 
-    async def listen(self):
-        """Wait for a result and process."""
-        tx = self.tx
-        waiting = self.waiting
-        while True:
-            if not waiting:
-                await asyncio.sleep(1e-2)
-                continue
+        def wrapper(fn: Callable) -> TaskWrapper:
+            wrap = TaskWrapper(self, fn, cast(TTaskParams, params))
+            return wraps(fn)(wrap)
 
-            try:
-                ident, res, *args = tx.get(block=False)
-                fut = waiting.pop(ident, None)
-                if fut:
-                    if isinstance(res, Exception):
-                        fut.set_exception(res)
-                    else:
-                        fut.set_result(res)
+        if fn is None:
+            return wrapper
 
-                # Leave the objects from the closure
-                fut = ident = res = None
+        return wrapper(fn)
 
-            except Empty:
-                pass
+    def submit(self, fn, args: tuple, kwargs: dict, params: TTaskParams) -> TaskResult:
+        """Submit a task to the backend."""
+        if not self.is_started:
+            raise RuntimeError("Manager is not started")
 
-            await asyncio.sleep(0)
-
-    def submit(self, func: t.Callable, *args, **kwargs) -> asyncio.Future:
-        """Submit a task to workers."""
-        if self.params["fake_mode"]:
-            return create_task(func, args, kwargs)
-
-        fut = self.loop.create_future()
-        res = self.__submit(fut, func, *args, **kwargs)
-        res = t.cast(asyncio.Future, res)
-        return res
-
-    def submit_nowait(self, func: t.Callable, *args, **kwargs):
-        """Submit a task to workers."""
-        if self.params["fake_mode"]:
-            create_task(func, args, kwargs)
-
-        else:
-            self.__submit(None, func, *args, **kwargs)
-
-    def schedule(
-        self,
-        interval: t.Union[int, float, datetime.timedelta, CronTab],
-        *args,
-        **kwargs,
-    ):
-        """Add func to schedules. Use this as a decorator.
-
-        Run given func/coro periodically.
-        """
-        if callable(interval):
-            raise RuntimeError("@donald.schedule(interval) should be used.")
-
-        if isinstance(interval, str) and " " in interval:
-            interval = CronTab(interval)
-
-        if isinstance(interval, datetime.timedelta):
-            timer = interval.total_seconds
-
-        elif isinstance(interval, CronTab):
-            timer = lambda: interval.next(default_utc=True)  # type: ignore
-
-        else:
-            timer = lambda: float(interval)  # type: ignore
-
-        def wrapper(func):
-            @wraps(func)
-            async def scheduler():
-                while True:
-                    sleep = max(timer(), 1e-2)
-                    logger.info("Next '%s' in %0.2f s", func.__qualname__, sleep)
-                    await asyncio.sleep(sleep)
-                    self.submit_nowait(func, *args, **kwargs)
-
-            self.schedules.append(scheduler)
-            return func
-
-        return wrapper
-
-    async def run(self, tick: int = 60):
-        """Keep asyncio busy."""
-        while self._started:
-            logger.info("Donald is running")
-            await asyncio.sleep(tick)
-
-    def on_start(self, func: t.Callable, *args, **kwargs) -> t.Callable:
-        """Register start handler."""
-        self.params["on_start"].append((func, args, kwargs))
-        return func
-
-    def on_stop(self, func: t.Callable, *args, **kwargs) -> t.Callable:
-        """Register stop handler."""
-        self.params["on_stop"].append((func, args, kwargs))
-        return func
+        return TaskResult(self._backend, fn, args, kwargs, params)
 
 
-def run_donald(donald, queue=True):
-    """Help to run donald."""
-    loop = asyncio.get_event_loop()
+from .scheduler import Scheduler, TInterval
+from .tasks import TaskResult, TaskWrapper
 
-    async def stop_donald():
-        if queue:
-            await donald.queue.stop()
-        await donald.stop()
-        loop.stop()
-
-    def handle_signal(loop):
-        """Stop donald before exit."""
-        loop.remove_signal_handler(signal.SIGTERM)
-        loop.remove_signal_handler(signal.SIGINT)
-        loop.create_task(stop_donald())
-
-    loop.add_signal_handler(signal.SIGTERM, handle_signal, loop)
-    loop.add_signal_handler(signal.SIGINT, handle_signal, loop)
-    loop.run_until_complete(donald.start())
-    if queue:
-        loop.run_until_complete(donald.queue.start())
-
-    try:
-        loop.run_forever()
-    finally:
-        loop.close()
+TWrapper = TypeVar("TWrapper", bound=Callable[[Callable], TaskWrapper])

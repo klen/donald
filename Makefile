@@ -48,6 +48,7 @@ major:
 
 $(VIRTUAL_ENV): $(CURDIR)/requirements/requirements.txt $(CURDIR)/requirements/requirements-tests.txt
 	python -m venv $(VIRTUAL_ENV)
+	$(VIRTUAL_ENV)/bin/pip install wheel
 	$(VIRTUAL_ENV)/bin/pip install -e .[tests]
 	touch $(VIRTUAL_ENV)
 
@@ -65,3 +66,12 @@ t test: $(VIRTUAL_ENV)
 
 mypy: $(VIRTUAL_ENV)
 	mypy --install-types --non-interactive donald
+
+example: $(VIRTUAL_ENV)
+	make -j scheduler worker worker
+
+worker: $(VIRTUAL_ENV)
+	$(VIRTUAL_ENV)/bin/python -m donald -M example worker
+
+scheduler: $(VIRTUAL_ENV)
+	$(VIRTUAL_ENV)/bin/python -m donald -M example scheduler

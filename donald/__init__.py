@@ -1,4 +1,9 @@
-"""Donald tasks' manager for Asyncio."""
+"""Tasks' manager for Asyncio."""
+
+__version__ = "0.20.0"
+__project__ = "Donald"
+__author__ = "Kirill Klenov <horneds@gmail.com>"
+__license__ = "BSD"
 
 import logging
 
@@ -12,13 +17,4 @@ handle.setFormatter(
 )
 logger.addHandler(handle)
 
-
-from .core import CronTab as crontab
-from .core import Donald, run_donald
-
-__all__ = "crontab", "Donald", "run_donald"
-
-__version__ = "0.15.1"
-__project__ = "Donald"
-__author__ = "Kirill Klenov <horneds@gmail.com>"
-__license__ = "BSD"
+from .core import Donald, TaskResult, TaskWrapper  # noqa
