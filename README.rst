@@ -183,12 +183,6 @@ Contributing
 
 Development of starter happens at github: https://github.com/klen/donald
 
-
-Contributors
-=============
-
-* klen_ (Kirill Klenov)
-
 .. _license:
 
 License
