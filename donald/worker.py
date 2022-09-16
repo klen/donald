@@ -6,7 +6,7 @@ from asyncio.locks import Event, Semaphore
 from asyncio.tasks import Task, create_task, gather, sleep
 from inspect import iscoroutinefunction
 from numbers import Number
-from typing import AsyncIterator, Callable, Iterable, Set, cast
+from typing import AsyncIterator, Callable, Dict, Iterable, Set, cast
 
 from async_timeout import timeout as async_timeout
 
@@ -106,7 +106,7 @@ Starting worker: {os.getpid()}
         self,
         func: Callable,
         args: Iterable,
-        kwargs: dict,
+        kwargs: Dict,
         timeout: Number = None,
         delay: Number = None,
         **params,

@@ -1,7 +1,7 @@
 import asyncio
 import random
 from threading import local
-from typing import AsyncIterator, Type
+from typing import AsyncIterator, Dict, Type
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -17,9 +17,9 @@ current_backend.value = None
 class BaseBackend:
 
     type: TBackendType
-    defaults: dict = {}
+    defaults: Dict = {}
 
-    def __init__(self, params: dict):
+    def __init__(self, params: Dict):
         self.is_connected = False
         self.params = dict(self.defaults, **params)
 
@@ -208,7 +208,7 @@ class AMQPBackend(BaseBackend):
         return iter_tasks()
 
 
-BACKENDS: dict[TBackendType, Type[BaseBackend]] = {
+BACKENDS: Dict[TBackendType, Type[BaseBackend]] = {
     "memory": MemoryBackend,
     "redis": RedisBackend,
     "amqp": AMQPBackend,

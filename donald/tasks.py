@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from asyncio import create_task
-from typing import Callable, Tuple, cast
+from typing import Callable, Dict, Tuple, cast
 
 from .backend import BaseBackend, current_backend
 from .types import TRunArgs, TTaskParams
@@ -24,7 +24,7 @@ class TaskWrapper:
     def submit(self, *args, **kwargs):
         return self.apply_submit(*args, kwargs=kwargs)
 
-    def apply_submit(self, *args, kwargs: dict = {}, **params):
+    def apply_submit(self, *args, kwargs: Dict = {}, **params):
         task_params = cast(TTaskParams, dict(self._params, **params))
         return self._manager.submit(self._fn, args, kwargs, task_params)
 
@@ -43,7 +43,7 @@ class TaskResult:
         backend: BaseBackend,
         fn: Callable,
         args: Tuple,
-        kwargs: dict,
+        kwargs: Dict,
         params: TTaskParams,
     ):
         if params.get("bind"):
