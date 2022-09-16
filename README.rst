@@ -58,7 +58,7 @@ Init the tasks manager:
 .. code:: python
 
     # Init Donald
-    tasks = Donald(
+    manager = Donald(
 
         # Params (default values)
         # -----------------------
@@ -97,16 +97,16 @@ Init the tasks manager:
     )
 
     # Wrap a function to task
-    @tasks.task
+    @manager.task
     async def myfunc(*args, **kwargs):
         # Do some job here
 
     # Start the manager somewhere (on app start for example)
-    await tasks.start()
+    await manager.start()
 
     # you may run a worker in the same process
     # not recommended for production
-    worker = donald.create_worker()
+    worker = manager.create_worker()
     worker.start()
 
     # ...
@@ -118,7 +118,7 @@ Init the tasks manager:
 
     # Stop the manager when you need
     await worker.stop()
-    await tasks.stop()
+    await manager.stop()
 
 
 Schedule tasks
@@ -135,12 +135,12 @@ Schedule tasks
 
   # you may run a scheduler in the same process
   # not recommended for production
-  tasks.scheduler.start()
+  manager.scheduler.start()
 
   # ...
 
   # Stop the scheduler before stop the tasks manager
-  tasks.scheduler.stop()
+  manager.scheduler.stop()
 
 
 Run in production
@@ -150,7 +150,7 @@ Create a tasks manager somewhere in your app `tasks.py`:
 
 .. code:: python
 
-  tasks = Donald(backend='amqp')
+  manager = Donald(backend='amqp')
 
   # Setup your tasks and schedules.
   # See the Quick Start section for details.
@@ -159,13 +159,13 @@ Run a worker in a separate process:
 
 .. code:: bash
 
-   $ donald -M tasks:tasks worker
+   $ donald -M tasks:manager worker
 
 Run a scheduler (if you need) in a separate process:
 
 .. code:: bash
 
-   $ donald -M tasks:tasks scheduler
+   $ donald -M tasks:manager scheduler
 
 .. _bugtracker:
 
