@@ -12,7 +12,7 @@ TTaskParams = TypedDict(
     },
 )
 
-TRunArgs = tuple[Callable, Tuple, Dict[str, Any], TTaskParams]
+TRunArgs = Tuple[Callable, Tuple, Dict[str, Any], TTaskParams]
 
 TWorkerParams = TypedDict(
     "TWorkerParams",
