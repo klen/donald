@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from asyncio import create_task
-from typing import Callable, cast
+from typing import Callable, Tuple, cast
 
 from .backend import BaseBackend, current_backend
 from .types import TRunArgs, TTaskParams
@@ -42,7 +42,7 @@ class TaskResult:
         self,
         backend: BaseBackend,
         fn: Callable,
-        args: tuple,
+        args: Tuple,
         kwargs: dict,
         params: TTaskParams,
     ):

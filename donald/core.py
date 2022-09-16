@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import wraps
 from logging.config import dictConfig
-from typing import Callable, TypeVar, cast, overload
+from typing import Callable, Tuple, TypeVar, cast, overload
 
 from . import logger
 from .backend import BACKENDS, BaseBackend
@@ -94,7 +94,7 @@ class Donald:
 
         return wrapper(fn)
 
-    def submit(self, fn, args: tuple, kwargs: dict, params: TTaskParams) -> TaskResult:
+    def submit(self, fn, args: Tuple, kwargs: dict, params: TTaskParams) -> TaskResult:
         """Submit a task to the backend."""
         if not self.is_started:
             raise RuntimeError("Manager is not started")

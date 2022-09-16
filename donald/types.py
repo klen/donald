@@ -1,5 +1,5 @@
 from numbers import Number
-from typing import Any, Awaitable, Callable, Literal, Optional, TypedDict
+from typing import Any, Awaitable, Callable, Literal, Optional, Tuple, TypedDict
 
 TBackendType = Literal["memory", "redis", "amqp"]
 
@@ -12,7 +12,7 @@ TTaskParams = TypedDict(
     },
 )
 
-TRunArgs = tuple[Callable, tuple, dict[str, Any], TTaskParams]
+TRunArgs = tuple[Callable, Tuple, dict[str, Any], TTaskParams]
 
 TWorkerParams = TypedDict(
     "TWorkerParams",
