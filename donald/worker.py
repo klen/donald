@@ -4,9 +4,10 @@ import os
 from asyncio.exceptions import CancelledError
 from asyncio.locks import Event, Semaphore
 from asyncio.tasks import Task, create_task, gather, sleep
+from functools import wraps
 from inspect import iscoroutinefunction
 from numbers import Number
-from typing import AsyncIterator, Callable, Dict, Iterable, Set, cast
+from typing import AsyncIterator, Awaitable, Callable, Dict, Iterable, Set, cast
 
 from async_timeout import timeout as async_timeout
 
@@ -43,7 +44,8 @@ class Worker:
         self._params = cast(TWorkerParams, dict(self.defaults, **params))
         self._task_params = cast(TTaskParams, self._params["task_defaults"] or {})
 
-        self.on_error = self._params.get("on_error")
+        on_error = self._params.get("on_error")
+        self.on_error = on_error and to_coroutinefn(on_error)
 
         max_tasks = self._params["max_tasks"]
         self._sem = max_tasks and Semaphore(max_tasks - 1)
@@ -76,7 +78,7 @@ class Worker:
 
         on_stop = self._params.get("on_stop")
         if on_stop:
-            await on_stop()
+            await to_coroutinefn(on_stop)()
 
         self._finished.set()
 
@@ -86,7 +88,7 @@ class Worker:
     async def run_worker(self):
         on_start = self._params.get("on_start")
         if on_start:
-            await on_start()
+            await to_coroutinefn(on_start)()
 
         logger.info("Worker started")
         task_iter: AsyncIterator[TRunArgs] = await self._backend.subscribe()
@@ -112,13 +114,7 @@ class Worker:
         delay: Number = None,
         **params,
     ):
-        if iscoroutinefunction(func):
-            corofunc = func
-
-        else:
-
-            async def corofunc(*args, **kwargs):
-                return func(*args, **kwargs)
+        corofunc = to_coroutinefn(func)
 
         # Process delay
         if delay:
@@ -154,3 +150,15 @@ class Worker:
         if tasks:
             logger.info("Waiting for %d tasks to complete", len(self._tasks))
             return await gather(*tasks, return_exceptions=True)
+
+
+def to_coroutinefn(fn: Callable) -> Callable[..., Awaitable]:
+    """Convert a function to a coroutine function."""
+    if iscoroutinefunction(fn):
+        return fn
+
+    @wraps(fn)
+    async def corofn(*args, **kwargs):
+        return fn(*args, **kwargs)
+
+    return corofn

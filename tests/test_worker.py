@@ -45,7 +45,7 @@ async def test_on_stop(check, caplog):
 
 async def test_on_error(check, caplog):
     @manager.on_error
-    async def on_error(exc):
+    def on_error(exc):
         logger.info("Run on_error: %s", exc)
 
     async with manager:
