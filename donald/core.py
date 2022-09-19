@@ -58,9 +58,9 @@ class Donald:
         self.is_started = False
         logger.info("Manager stopped")
 
-    def create_worker(self):
+    def create_worker(self, **params):
         """Create a worker."""
-        worker_params = self._params["worker_params"]
+        worker_params: TWorkerParams = dict(self._params["worker_params"], **params)
         return Worker(self._backend, worker_params)
 
     async def __aenter__(self):

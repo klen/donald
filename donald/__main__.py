@@ -57,7 +57,7 @@ async def worker(ctx, **params):
     manager: Donald = ctx.obj["manager"]
     await manager.start()
 
-    worker = manager.create_worker(**params)
+    worker = manager.create_worker(show_banner=True, **params)
     worker.start()
 
     await worker.wait()

@@ -164,6 +164,9 @@ class AMQPBackend(BaseBackend):
     reconnecting = None
 
     async def on_error(self, exc):
+        if not self.is_connected:
+            return
+
         self.is_connected = False
         if self.reconnecting is None:
             self.reconnecting = asyncio.Condition()

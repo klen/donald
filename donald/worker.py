@@ -14,9 +14,22 @@ from . import __version__, logger
 from .backend import BaseBackend
 from .types import TRunArgs, TTaskParams, TWorkerParams
 
+BANNER = r"""
+
+$$$$$$$\                                $$\       $$\ 
+$$  __$$\                               $$ |      $$ |
+$$ |  $$ | $$$$$$\  $$$$$$$\   $$$$$$\  $$ | $$$$$$$ |
+$$ |  $$ |$$  __$$\ $$  __$$\  \____$$\ $$ |$$  __$$ |
+$$ |  $$ |$$ /  $$ |$$ |  $$ | $$$$$$$ |$$ |$$ /  $$ |
+$$ |  $$ |$$ |  $$ |$$ |  $$ |$$  __$$ |$$ |$$ |  $$ |
+$$$$$$$  |\$$$$$$  |$$ |  $$ |\$$$$$$$ |$$ |\$$$$$$$ |
+\_______/  \______/ \__|  \__| \_______|\__| \_______|
+"""
+
 
 class Worker:
     defaults: TWorkerParams = {
+        "show_banner": False,
         "max_tasks": 0,
         "task_defaults": None,
         "on_start": None,
@@ -40,24 +53,12 @@ class Worker:
 
     def start(self):
         """Start the worker."""
-        logger.info(
-            f"""
+        msg = self._params.get("show_banner") and BANNER or ""
+        msg += f"\n\nDonald v{__version__} - Worker"
+        msg += f"\nBackend: {self._backend.type}"
+        msg += f"\nPID: {os.getpid()}\n"
 
-$$$$$$$\                                $$\       $$\ 
-$$  __$$\                               $$ |      $$ |
-$$ |  $$ | $$$$$$\  $$$$$$$\   $$$$$$\  $$ | $$$$$$$ |
-$$ |  $$ |$$  __$$\ $$  __$$\  \____$$\ $$ |$$  __$$ |
-$$ |  $$ |$$ /  $$ |$$ |  $$ | $$$$$$$ |$$ |$$ /  $$ |
-$$ |  $$ |$$ |  $$ |$$ |  $$ |$$  __$$ |$$ |$$ |  $$ |
-$$$$$$$  |\$$$$$$  |$$ |  $$ |\$$$$$$$ |$$ |\$$$$$$$ |
-\_______/  \______/ \__|  \__| \_______|\__| \_______|
-                                                      
-Version: {__version__}
-Backend: {self._backend.type}
-Worker PID: {os.getpid()}
-
-"""
-        )
+        logger.info(msg)
         self._finished.clear()
         self._runner = create_task(self.run_worker())
 
