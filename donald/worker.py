@@ -7,7 +7,7 @@ from asyncio.tasks import Task, create_task, gather, sleep
 from functools import wraps
 from inspect import iscoroutinefunction
 from numbers import Number
-from typing import AsyncIterator, Awaitable, Callable, Dict, Iterable, Set, cast
+from typing import AsyncIterator, Callable, Coroutine, Dict, Iterable, Set, cast
 
 from async_timeout import timeout as async_timeout
 
@@ -135,7 +135,8 @@ class Worker:
                     "Fail: '%s' (%d)", task.get_name(), id(task), exc_info=exc
                 )
                 if self.on_error:
-                    create_task(self.on_error(exc))
+                    coro = self.on_error(exc)
+                    create_task(coro)
         except CancelledError:
             pass
 
@@ -152,7 +153,7 @@ class Worker:
             return await gather(*tasks, return_exceptions=True)
 
 
-def to_coroutinefn(fn: Callable) -> Callable[..., Awaitable]:
+def to_coroutinefn(fn: Callable) -> Callable[..., Coroutine]:
     """Convert a function to a coroutine function."""
     if iscoroutinefunction(fn):
         return fn
