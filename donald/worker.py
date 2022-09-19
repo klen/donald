@@ -54,7 +54,7 @@ $$$$$$$  |\$$$$$$  |$$ |  $$ |\$$$$$$$ |$$ |\$$$$$$$ |
                                                       
 Version: {__version__}
 Backend: {self._backend.type}
-Starting worker: {os.getpid()}
+Worker PID: {os.getpid()}
 
 """
         )
