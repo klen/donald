@@ -17,12 +17,12 @@ TRunArgs = Tuple[Callable, Tuple, Dict[str, Any], TTaskParams]
 TWorkerParams = TypedDict(
     "TWorkerParams",
     {
-        "show_banner": Optional[bool],
         "max_tasks": Optional[int],
         "task_defaults": Optional[TTaskParams],
         "on_start": Optional[Callable[[], Awaitable]],
         "on_stop": Optional[Callable[[], Awaitable]],
         "on_error": Optional[Callable[[BaseException], Coroutine]],
+        "show_banner": Optional[bool],
         # "timeout": Number,
         # "task_retry": int,
         # "task_retry_delay": Number,

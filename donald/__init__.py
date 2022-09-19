@@ -17,4 +17,4 @@ handle.setFormatter(
 )
 logger.addHandler(handle)
 
-from .core import Donald, TaskResult, TaskWrapper  # noqa
+from .manager import Donald, TaskResult, TaskWrapper  # noqa

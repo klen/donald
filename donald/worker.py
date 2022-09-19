@@ -29,12 +29,12 @@ $$$$$$$  |\$$$$$$  |$$ |  $$ |\$$$$$$$ |$$ |\$$$$$$$ |
 
 class Worker:
     defaults: TWorkerParams = {
-        "show_banner": False,
         "max_tasks": 0,
         "task_defaults": None,
         "on_start": None,
         "on_stop": None,
         "on_error": None,
+        "show_banner": False,
     }
 
     def __init__(self, backend: BaseBackend, params: TWorkerParams):

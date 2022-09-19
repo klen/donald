@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from donald.core import TaskResult
+from donald.manager import TaskResult
 
 from .tasks import async_task, manager
 

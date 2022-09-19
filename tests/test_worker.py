@@ -6,10 +6,9 @@ from .tasks import async_task, manager
 
 
 async def test_on_start(check, caplog):
+    @manager.on_start
     async def on_start():
         logger.info("Run on_start")
-
-    manager.setup(worker_params={"on_start": on_start})
 
     async with manager:
         w = manager.create_worker()
@@ -26,10 +25,9 @@ async def test_on_start(check, caplog):
 
 
 async def test_on_stop(check, caplog):
+    @manager.on_stop
     async def on_stop():
         logger.info("Run on_stop")
-
-    manager.setup(worker_params={"on_stop": on_stop})
 
     async with manager:
         w = manager.create_worker()
@@ -46,10 +44,9 @@ async def test_on_stop(check, caplog):
 
 
 async def test_on_error(check, caplog):
+    @manager.on_error
     async def on_error(exc):
         logger.info("Run on_error: %s", exc)
-
-    manager.setup(worker_params={"on_error": on_error})
 
     async with manager:
         w = manager.create_worker()

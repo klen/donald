@@ -101,6 +101,21 @@ class Donald:
 
         return TaskResult(self._backend, fn, args, kwargs, params)
 
+    def on_start(self, fn: Callable):
+        """Register a function to be called on worker start."""
+        self._params["worker_params"]["on_start"] = fn
+        return fn
+
+    def on_stop(self, fn: Callable):
+        """Register a function to be called on worker stop."""
+        self._params["worker_params"]["on_stop"] = fn
+        return fn
+
+    def on_error(self, fn: Callable):
+        """Register a function to be called on worker error."""
+        self._params["worker_params"]["on_error"] = fn
+        return fn
+
 
 from .scheduler import Scheduler, TInterval
 from .tasks import TaskResult, TaskWrapper

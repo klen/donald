@@ -66,4 +66,4 @@ class TaskResult:
         return self._submit.__await__()
 
 
-from .core import Donald
+from .manager import Donald

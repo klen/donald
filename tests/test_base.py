@@ -1,5 +1,5 @@
 from donald import Donald
-from donald.core import TaskWrapper
+from donald.manager import TaskWrapper
 
 
 def test_base():
