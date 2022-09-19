@@ -17,6 +17,7 @@ TRunArgs = Tuple[Callable, Tuple, Dict[str, Any], TTaskParams]
 TWorkerParams = TypedDict(
     "TWorkerParams",
     {
+        "show_banner": Optional[bool],
         "max_tasks": Optional[int],
         "task_defaults": Optional[TTaskParams],
         "on_start": Optional[Callable[[], Awaitable]],
