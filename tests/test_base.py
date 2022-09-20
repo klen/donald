@@ -8,23 +8,38 @@ def test_base():
     assert donald._backend
 
 
-def test_wrap_task():
+def foo():
+    return 42
+
+
+async def test_wrap_task():
     donald = Donald()
 
-    @donald.task
+    tw = donald.task(foo)
+
+    assert tw
+    assert tw.import_path() == "tests.test_base.foo"
+    assert isinstance(tw, TaskWrapper)
+    assert tw._fn
+    assert await tw() == 42
+
+    tw = donald.task(delay=10)(foo)
+
+    assert tw
+    assert isinstance(tw, TaskWrapper)
+    assert await tw() == 42
+    assert tw._params["delay"] == 10
+
+
+async def test_dont_wrap_local_tasks():
+    donald = Donald()
+
     def foo():
         return 1
 
-    assert foo
-    assert isinstance(foo, TaskWrapper)
-    assert foo._fn
-    assert foo._fn() == 1
-
-    @donald.task(delay=10)
-    def bar():
-        return 2
-
-    assert bar
-    assert isinstance(bar, TaskWrapper)
-    assert bar._fn() == 2
-    assert bar._params["delay"] == 10
+    try:
+        donald.task(foo)
+    except ValueError:
+        pass
+    else:
+        assert False, "Expected ValueError"

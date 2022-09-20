@@ -23,8 +23,8 @@ clean:
 VERSION?=minor
 # target: release - Bump version
 release:
-	@pip install bumpversion
-	@bumpversion $(VERSION)
+	@pip install bump2version
+	@bump2version $(VERSION)
 	@git checkout master
 	@git merge develop
 	@git checkout develop
@@ -71,7 +71,7 @@ example: $(VIRTUAL_ENV)
 	make -j scheduler worker worker
 
 worker: $(VIRTUAL_ENV)
-	$(VIRTUAL_ENV)/bin/python -m donald -M example worker
+	$(VIRTUAL_ENV)/bin/python -m donald -M example.manager worker
 
 scheduler: $(VIRTUAL_ENV)
-	$(VIRTUAL_ENV)/bin/python -m donald -M example scheduler
+	$(VIRTUAL_ENV)/bin/python -m donald -M example.manager scheduler

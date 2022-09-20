@@ -4,16 +4,15 @@ import os
 from asyncio.exceptions import CancelledError
 from asyncio.locks import Event, Semaphore
 from asyncio.tasks import Task, create_task, gather, sleep
-from functools import wraps
-from inspect import iscoroutinefunction
 from numbers import Number
-from typing import AsyncIterator, Callable, Coroutine, Dict, Iterable, Set, cast
+from typing import AsyncIterator, Callable, Dict, Iterable, Set, cast
 
 from async_timeout import timeout as async_timeout
 
 from . import __version__, logger
 from .backend import BaseBackend
 from .types import TRunArgs, TTaskParams, TWorkerParams
+from .utils import to_coroutinefn
 
 BANNER = r"""
 
@@ -63,6 +62,7 @@ class Worker:
         logger.info(msg)
         self._finished.clear()
         self._runner = create_task(self.run_worker())
+        self._runner.add_done_callback(self.finish_task)
 
     async def stop(self):
         """Stop the worker."""
@@ -94,28 +94,25 @@ class Worker:
         task_iter: AsyncIterator[TRunArgs] = await self._backend.subscribe()
         sem, tasks, finish_task = self._sem, self._tasks, self.finish_task
         async for task_msg in task_iter:
-            fn, args, kwargs, params = task_msg
+            tw, args, kwargs, params = task_msg
             params = dict(self._task_params, **params)
-            task = create_task(
-                self.run_task(fn, args, kwargs, **params), name=fn.__qualname__
-            )
-            task.add_done_callback(finish_task)
+            name = tw.import_path()
+            task = create_task(self.run_task(tw, args, kwargs, **params), name=name)
             tasks.add(task)
-            logger.info("Run: '%s' (%d)", fn.__qualname__, id(task))
+            task.add_done_callback(finish_task)
+            logger.info("Run: '%s' (%d)", name, id(task))
             if sem:
                 await sem.acquire()
 
     async def run_task(
         self,
-        func: Callable,
+        corofunc: Callable,
         args: Iterable,
         kwargs: Dict,
         timeout: Number = None,
         delay: Number = None,
         **params,
     ):
-        corofunc = to_coroutinefn(func)
-
         # Process delay
         if delay:
             await sleep(cast(float, delay))
@@ -123,7 +120,7 @@ class Worker:
         # Process timeout
         if timeout:
             async with async_timeout(cast(float, timeout)):
-                return corofunc(*args, **kwargs)
+                return await corofunc(*args, **kwargs)
 
         return await corofunc(*args, **kwargs)
 
@@ -140,9 +137,10 @@ class Worker:
         except CancelledError:
             pass
 
-        self._tasks.remove(task)
-        if self._sem:
-            self._sem.release()
+        if task in self._tasks:
+            self._tasks.remove(task)
+            if self._sem:
+                self._sem.release()
         logger.info("Done: '%s' (%d)", task.get_name(), id(task))
 
     async def join(self):
@@ -151,15 +149,3 @@ class Worker:
         if tasks:
             logger.info("Waiting for %d tasks to complete", len(self._tasks))
             return await gather(*tasks, return_exceptions=True)
-
-
-def to_coroutinefn(fn: Callable) -> Callable[..., Coroutine]:
-    """Convert a function to a coroutine function."""
-    if iscoroutinefunction(fn):
-        return fn
-
-    @wraps(fn)
-    async def corofn(*args, **kwargs):
-        return fn(*args, **kwargs)
-
-    return corofn

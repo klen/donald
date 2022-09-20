@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 from numbers import Number
-from typing import Any, Awaitable, Callable, Coroutine, Dict, Literal, Optional, Tuple, TypedDict
+from typing import (TYPE_CHECKING, Any, Awaitable, Callable, Coroutine, Dict, Literal, Optional,
+                    Tuple, TypedDict)
+
+if TYPE_CHECKING:
+    from .tasks import TaskWrapper
 
 TBackendType = Literal["memory", "redis", "amqp"]
 
@@ -12,7 +18,7 @@ TTaskParams = TypedDict(
     },
 )
 
-TRunArgs = Tuple[Callable, Tuple, Dict[str, Any], TTaskParams]
+TRunArgs = Tuple["TaskWrapper", Tuple, Dict[str, Any], TTaskParams]
 
 TWorkerParams = TypedDict(
     "TWorkerParams",

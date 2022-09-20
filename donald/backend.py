@@ -5,10 +5,12 @@ from typing import AsyncIterator, Dict, Type
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from dill import dumps, loads
-
 from . import logger
 from .types import TBackendType, TRunArgs
+from .utils import dumps, loads
+
+# from dill import dumps, loads
+
 
 current_backend = local()
 current_backend.value = None
@@ -38,7 +40,8 @@ class BaseBackend:
     def submit(self, data: TRunArgs):
         if not self.is_connected:
             raise RuntimeError("Backend is not connected")
-        return self._submit(dumps(data))
+        _data = dumps(data)
+        return self._submit(_data)
 
     async def subscribe(self) -> AsyncIterator[TRunArgs]:
         raise NotImplementedError

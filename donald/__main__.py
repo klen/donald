@@ -1,22 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 import signal
 from functools import wraps
 
 import click
 
+from .utils import import_obj
+
 
 def import_manager(path: str) -> Donald:
     """Import a manager from a python path."""
-    mod_name, _, manager = path.partition(":")
-
-    try:
-        mod = importlib.import_module(mod_name)
-        return getattr(mod, manager or "manager", None) or getattr(mod, "tasks")
-    except (ImportError, AttributeError) as exc:
-        raise ImportError(f"Manager '{path}' not found") from exc
+    manager: Donald = import_obj(path)
+    return manager
 
 
 def process_await(fn):

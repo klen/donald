@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import wraps
 from logging.config import dictConfig
 from typing import Callable, Dict, Tuple, TypeVar, cast, overload
 
@@ -86,20 +85,21 @@ class Donald:
         """Decorator to wrap a function into a Task object."""
 
         def wrapper(fn: Callable) -> TaskWrapper:
-            wrap = TaskWrapper(self, fn, cast(TTaskParams, params))
-            return wraps(fn)(wrap)
+            return TaskWrapper(self, fn, cast(TTaskParams, params))
 
         if fn is None:
             return wrapper
 
         return wrapper(fn)
 
-    def submit(self, fn, args: Tuple, kwargs: Dict, params: TTaskParams) -> TaskResult:
+    def submit(
+        self, tw: TaskWrapper, args: Tuple, kwargs: Dict, params: TTaskParams
+    ) -> TaskResult:
         """Submit a task to the backend."""
         if not self.is_started:
             raise RuntimeError("Manager is not started")
 
-        return TaskResult(self._backend, fn, args, kwargs, params)
+        return TaskResult(self._backend, tw, args, kwargs, params)
 
     def on_start(self, fn: Callable):
         """Register a function to be called on worker start."""

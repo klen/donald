@@ -1,4 +1,4 @@
-Donald 0.22.1
+Donald 0.29.0
 #############
 
 .. _description:
@@ -159,13 +159,13 @@ Run a worker in a separate process:
 
 .. code:: bash
 
-   $ donald -M tasks:manager worker
+   $ donald -M tasks.manager worker
 
 Run a scheduler (if you need) in a separate process:
 
 .. code:: bash
 
-   $ donald -M tasks:manager scheduler
+   $ donald -M tasks.manager scheduler
 
 .. _bugtracker:
 

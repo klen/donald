@@ -69,7 +69,7 @@ class Scheduler:
             async def scheduler():
                 while True:
                     to_sleep = max(timer(), 1e-2)
-                    logger.info("Next '%s' in %0.2f s", task.__qualname__, to_sleep)
+                    logger.info("Next '%s' in %0.2f s", task.import_path(), to_sleep)
                     await sleep(to_sleep)
                     task.submit()
 
