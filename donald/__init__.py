@@ -1,6 +1,6 @@
 """Tasks' manager for Asyncio."""
 
-__version__ = "0.29.0"
+__version__ = "0.30.0"
 __project__ = "Donald"
 __author__ = "Kirill Klenov <horneds@gmail.com>"
 __license__ = "BSD"
