@@ -23,7 +23,7 @@ class Scheduler:
         self._finished = None
 
     def start(self):
-        logger.info("Starting scheduler")
+        logger.info("Starting task scheduler")
         self._finished = Event()
         for scheduler in self._schedule:
             self._tasks.append(create_task(scheduler()))

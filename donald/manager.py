@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
-from typing import Callable, Dict, Tuple, TypeVar, cast, overload
+from typing import Callable, TypeVar, cast, overload
 
 from . import current_manager, logger
 from .backend import BACKENDS, BaseBackend
@@ -49,15 +49,16 @@ class Donald:
 
     async def start(self):
         """Start the manager."""
-        logger.info("Starting manager")
+        logger.info("Starting tasks manager")
         await self._backend.connect()
         self.is_started = True
+        logger.info("Tasks manager started")
 
     async def stop(self):
-        logger.info("Stopping manager")
+        logger.info("Stopping tasks manager")
         await self._backend.disconnect()
         self.is_started = False
-        logger.info("Manager stopped")
+        logger.info("Tasks manager stopped")
 
     def create_worker(self, **params):
         """Create a worker."""

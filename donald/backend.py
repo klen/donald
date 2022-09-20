@@ -1,16 +1,12 @@
 import asyncio
 import random
 from pickle import dumps, loads
-from threading import local
 from typing import AsyncIterator, Dict, Type
 from urllib.parse import urlparse
 from uuid import uuid4
 
 from . import logger
 from .types import TBackendType, TRunArgs
-
-current_backend = local()
-current_backend.value = None
 
 
 class BaseBackend:
@@ -23,20 +19,20 @@ class BaseBackend:
         self.params = dict(self.defaults, **params)
 
     async def connect(self):
+        logger.info("Connecting to Tasks Backend: %s", self.type)
         await self._connect()
-        current_backend.value = self
         self.is_connected = True
-        logger.info("Backend connected: %s", self.type)
+        logger.info("Connected to Tasks Backend: %s", self.type)
 
     async def disconnect(self):
+        logger.info("Disconnecting from Tasks Backend: %s", self.type)
         self.is_connected = False
         await self._disconnect()
-        current_backend.value = None
-        logger.info("Backend disconnected: %s", self.type)
+        logger.info("Disconnected from Tasks Backend: %s", self.type)
 
     def submit(self, data: TRunArgs):
         if not self.is_connected:
-            raise RuntimeError("Backend is not connected")
+            raise RuntimeError("Tasks Backend is not connected")
         _data = dumps(data)
         return self._submit(_data)
 
