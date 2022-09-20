@@ -68,10 +68,4 @@ mypy: $(VIRTUAL_ENV)
 	mypy --install-types --non-interactive donald
 
 example: $(VIRTUAL_ENV)
-	make -j scheduler worker worker
-
-worker: $(VIRTUAL_ENV)
-	$(VIRTUAL_ENV)/bin/python -m donald -M example.manager worker
-
-scheduler: $(VIRTUAL_ENV)
-	$(VIRTUAL_ENV)/bin/python -m donald -M example.manager scheduler
+	$(VIRTUAL_ENV)/bin/python -m donald -M example.manager worker -S

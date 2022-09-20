@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
 from typing import Callable, Dict, Tuple, TypeVar, cast, overload
 
-from . import logger
+from . import current_manager, logger
 from .backend import BACKENDS, BaseBackend
 from .types import TManagerParams, TTaskParams, TWorkerParams
 from .worker import Worker
@@ -27,6 +28,7 @@ class Donald:
         self.is_started = False
         self.setup(**params)
         self.scheduler = Scheduler()
+        current_manager.value = self
 
     def __repr__(self):
         return f"<Donald {self._params['backend']}>"
@@ -92,14 +94,12 @@ class Donald:
 
         return wrapper(fn)
 
-    def submit(
-        self, tw: TaskWrapper, args: Tuple, kwargs: Dict, params: TTaskParams
-    ) -> TaskResult:
+    def submit(self, run: TaskRun) -> Task:
         """Submit a task to the backend."""
         if not self.is_started:
             raise RuntimeError("Manager is not started")
 
-        return TaskResult(self._backend, tw, args, kwargs, params)
+        return create_task(self._backend.submit(run.data))
 
     def on_start(self, fn: Callable):
         """Register a function to be called on worker start."""
@@ -118,6 +118,6 @@ class Donald:
 
 
 from .scheduler import Scheduler, TInterval
-from .tasks import TaskResult, TaskWrapper
+from .tasks import TaskRun, TaskWrapper
 
 TWrapper = TypeVar("TWrapper", bound=Callable[[Callable], TaskWrapper])

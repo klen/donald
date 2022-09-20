@@ -18,7 +18,7 @@ async def test_wrap_task():
     tw = donald.task(foo)
 
     assert tw
-    assert tw.import_path() == "tests.test_base.foo"
+    assert tw.import_path() == "tests.test__base.foo"
     assert isinstance(tw, TaskWrapper)
     assert tw._fn
     assert await tw() == 42

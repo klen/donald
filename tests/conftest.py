@@ -1,24 +1,24 @@
+import asyncio
+
 import pytest
 from redis import Redis
 
 
 @pytest.fixture
-def check(tmp_path):
-    def checker():
-        path = tmp_path / "result.txt"
-        if not path.exists():
-            return None
-        with open(path) as f:
-            return f.read().splitlines()
+def checklog(caplog):
+    def _log_contains(msg, min_count=1):
+        msgs = [r.message for r in caplog.records]
+        return msgs.count(msg) >= min_count
 
-    def clear():
-        path = tmp_path / "result.txt"
-        if path.exists():
-            path.unlink()
+    return _log_contains
 
-    checker.path = tmp_path
-    checker.clear = clear
-    return checker
+
+@pytest.fixture
+def sleep():
+    async def _sleep(timeout=1e-2):
+        await asyncio.sleep(timeout)
+
+    return _sleep
 
 
 @pytest.fixture

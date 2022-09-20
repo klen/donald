@@ -12,7 +12,7 @@ from async_timeout import timeout as async_timeout
 from . import __version__, logger
 from .backend import BaseBackend
 from .types import TRunArgs, TTaskParams, TWorkerParams
-from .utils import to_coroutinefn
+from .utils import import_obj, to_coroutinefn
 
 BANNER = r"""
 
@@ -61,7 +61,7 @@ class Worker:
 
         logger.info(msg)
         self._finished.clear()
-        self._runner = create_task(self.run_worker())
+        self._runner = create_task(self.run_worker(), name="Worker Run Task")
         self._runner.add_done_callback(self.finish_task)
 
     async def stop(self):
@@ -94,7 +94,13 @@ class Worker:
         task_iter: AsyncIterator[TRunArgs] = await self._backend.subscribe()
         sem, tasks, finish_task = self._sem, self._tasks, self.finish_task
         async for task_msg in task_iter:
-            tw, args, kwargs, params = task_msg
+            try:
+                path, args, kwargs, params = task_msg
+                tw = import_obj(path)
+            except Exception as exc:
+                logger.exception("Failed to get task: %s", path, exc_info=exc)
+                continue
+
             params = dict(self._task_params, **params)
             name = tw.import_path()
             task = create_task(self.run_task(tw, args, kwargs, **params), name=name)
@@ -141,7 +147,7 @@ class Worker:
             self._tasks.remove(task)
             if self._sem:
                 self._sem.release()
-        logger.info("Done: '%s' (%d)", task.get_name(), id(task))
+        logger.info("Finished: '%s' (%d)", task.get_name(), id(task))
 
     async def join(self):
         """Wait for all tasks to complete."""

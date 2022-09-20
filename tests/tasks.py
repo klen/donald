@@ -1,5 +1,4 @@
 import asyncio
-from functools import wraps
 
 from donald import Donald, logger
 
@@ -9,18 +8,7 @@ manager = Donald(
 )
 
 
-def store_result(fn):
-    @wraps(fn)
-    async def wrapper(tmp_path, *args, **kwargs):
-        result = await fn(*args, **kwargs)
-        with open(tmp_path / "result.txt", "a") as f:
-            f.write(f"{result}\n")
-
-    return wrapper
-
-
 @manager.task
-@store_result
 async def async_task(res=42, timeout=None, error=False):
     if timeout:
         await asyncio.sleep(timeout)
@@ -36,3 +24,17 @@ async def async_task(res=42, timeout=None, error=False):
 @manager.task
 async def scheduled_task(res=42):
     logger.info("Run scheduled_task %s", res)
+
+
+@manager.task
+async def nested_task():
+    async_task.submit("nested")
+    async_task.submit("nested")
+    async_task.submit("nested")
+    return "done"
+
+
+@manager.task(bind=True)
+async def bind_task(self):
+    logger.info("Run bind_task %s", self.__class__.__name__)
+    return self

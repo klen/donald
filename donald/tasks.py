@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from asyncio import create_task
+from asyncio.tasks import Task
 from typing import Callable, Dict, Tuple, cast
 
-from .backend import BaseBackend, current_backend
+from . import current_manager
 from .types import TRunArgs, TTaskParams
 from .utils import to_coroutinefn
 
@@ -35,22 +36,18 @@ class TaskWrapper:
 
     def apply_submit(self, *args, kwargs: Dict = {}, **params):
         task_params = cast(TTaskParams, dict(self._params, **params))
-        return self._manager.submit(self, args, kwargs, task_params)
+        res = TaskRun(self.import_path(), args, kwargs, task_params)
+        return self._manager.submit(res)
 
 
-class TaskResult:
+class TaskRun:
     """Wrap a given function into a Task object."""
 
-    __slots__ = (
-        "retries",
-        "_data",
-        "_submit",
-    )
+    __slots__ = ("data", "retries")
 
     def __init__(
         self,
-        backend: BaseBackend,
-        tw: TaskWrapper,
+        path: str,
         args: Tuple,
         kwargs: Dict,
         params: TTaskParams,
@@ -59,20 +56,16 @@ class TaskResult:
             args = (self,) + args
 
         self.retries = 0
-        self._data: TRunArgs = (tw, args, kwargs, params)
-        self._submit = create_task(backend.submit(self._data))
+        self.data: TRunArgs = (path, args, kwargs, params)
 
-    def retry(self):
-        backend = current_backend.value
+    def retry(self) -> Task:
+        manager = current_manager.value
         self.retries += 1
-        self._submit = create_task(backend.submit(self._data))
+        return manager.submit(self)
 
     def __repr__(self):
-        fn = self._data[0]
-        return f"<TaskResult {fn.__qualname__}>"
-
-    def __await__(self):
-        return self._submit.__await__()
+        path = self.data[0]
+        return f"<TaskRun {path}>"
 
 
 from .manager import Donald

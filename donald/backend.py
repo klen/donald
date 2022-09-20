@@ -1,5 +1,6 @@
 import asyncio
 import random
+from pickle import dumps, loads
 from threading import local
 from typing import AsyncIterator, Dict, Type
 from urllib.parse import urlparse
@@ -7,10 +8,6 @@ from uuid import uuid4
 
 from . import logger
 from .types import TBackendType, TRunArgs
-from .utils import dumps, loads
-
-# from dill import dumps, loads
-
 
 current_backend = local()
 current_backend.value = None

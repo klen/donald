@@ -17,4 +17,10 @@ handle.setFormatter(
 )
 logger.addHandler(handle)
 
-from .manager import Donald, TaskResult, TaskWrapper  # noqa
+from threading import local
+
+current_manager = local()
+current_manager.value = None
+
+from .manager import Donald  # noqa
+from .tasks import TaskRun, TaskWrapper  # noqa

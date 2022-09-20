@@ -35,8 +35,9 @@ def cli(ctx, manager):
 
 
 @cli.command(help="Launch a worker")
+@click.option("-S", "--scheduler", "scheduler", is_flag=True, help="Start a scheduler")
 @process_await
-async def worker(ctx, **params):
+async def worker(ctx, scheduler=False, **params):
     """Launch a worker."""
 
     loop = ctx.obj["loop"]
@@ -45,6 +46,8 @@ async def worker(ctx, **params):
         loop.remove_signal_handler(signal.SIGTERM)
         loop.remove_signal_handler(signal.SIGINT)
         await worker.stop()
+        if scheduler:
+            await manager.scheduler.stop()
         await manager.stop()
 
     loop.add_signal_handler(signal.SIGINT, lambda: loop.create_task(stop()))
@@ -52,6 +55,8 @@ async def worker(ctx, **params):
 
     manager: Donald = ctx.obj["manager"]
     await manager.start()
+    if scheduler:
+        manager.scheduler.start()
 
     worker = manager.create_worker(show_banner=True, **params)
     worker.start()
@@ -89,4 +94,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-from donald.core import Donald
+from donald.manager import Donald

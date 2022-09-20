@@ -1,8 +1,4 @@
-import asyncio
-
 import pytest
-
-from donald.manager import TaskResult
 
 from .tasks import async_task, manager
 
@@ -23,20 +19,18 @@ async def setup():
         await w2.stop()
 
 
-async def test_submit_task(setup, check):
-    res = async_task.submit(check.path)
-    assert isinstance(res, TaskResult)
-    await res
+async def test_submit_task(setup, sleep, checklog):
+    res = async_task.submit()
+    assert res
+    assert await res
 
-    submited = await res
-    assert submited
+    await sleep()
+    assert checklog("Run async_task 42")
 
-    await asyncio.sleep(1e-1)
+    for n in range(3):
+        assert await async_task.submit(n)
 
-    assert check() == ["42"]
-
-    for n in range(10):
-        assert await async_task.submit(check.path, n)
-
-    await asyncio.sleep(5e-1)
-    assert check() == ["42", *map(str, range(10))]
+    await sleep(1e-1)
+    assert checklog("Run async_task 0")
+    assert checklog("Run async_task 1")
+    assert checklog("Run async_task 2")
