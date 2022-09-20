@@ -51,7 +51,7 @@ async def test_timeout(sleep, checklog):
 
 async def test_nested_tasks(sleep, checklog):
     nested_task.submit()
-    await sleep(2e-2)
+    await sleep(3e-2)
     assert checklog("Run async_task nested", min_count=3)
 
 
