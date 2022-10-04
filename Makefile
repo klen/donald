@@ -1,4 +1,4 @@
-VIRTUAL_ENV ?= $(CURDIR)/env
+VIRTUAL_ENV ?= $(CURDIR)/.venv
 
 all: $(VIRTUAL_ENV)
 
