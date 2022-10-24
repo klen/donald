@@ -33,7 +33,8 @@ class Scheduler:
             task.cancel()
 
         await self.join()
-        self._finished.set()
+        if self._finished is not None:
+            self._finished.set()
 
     def wait(self):
         if self._finished is None:
