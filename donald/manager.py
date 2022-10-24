@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
-from typing import Callable, TypeVar, cast, overload
+from typing import Any, Callable, cast, overload
 
 from . import current_manager, logger
 from .backend import BACKENDS, BaseBackend
@@ -77,11 +77,11 @@ class Donald:
         return self.scheduler.schedule(interval)
 
     @overload
-    def task(self, **params) -> TWrapper:
+    def task(self, fn: Callable) -> TaskWrapper:
         ...
 
     @overload
-    def task(self, fn: Callable) -> TaskWrapper:
+    def task(self, **params) -> Callable[[Callable], TaskWrapper]:
         ...
 
     def task(self, fn: Callable = None, **params):
@@ -120,5 +120,3 @@ class Donald:
 
 from .scheduler import Scheduler, TInterval
 from .tasks import TaskRun, TaskWrapper
-
-TWrapper = TypeVar("TWrapper", bound=Callable[[Callable], TaskWrapper])
