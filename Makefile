@@ -62,6 +62,7 @@ rabbit:
 .PHONY: t test
 # target: test - Runs tests
 t test: $(VIRTUAL_ENV)
+	docker start rabbitmq
 	@$(VIRTUAL_ENV)/bin/pytest tests
 
 mypy: $(VIRTUAL_ENV)
