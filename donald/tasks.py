@@ -11,7 +11,7 @@ from .utils import to_coroutinefn
 class TaskWrapper:
     """Wrap a given function into a Task object."""
 
-    __slots__ = ("_manager", "_fn", "_params")
+    __slots__ = ("_manager", "_fn", "_params", "_timer")
 
     def __init__(self, manager: Donald, fn: Callable, params: TTaskParams):
         if "<locals>" in fn.__qualname__:
@@ -20,6 +20,7 @@ class TaskWrapper:
         self._manager = manager
         self._fn = to_coroutinefn(fn)
         self._params: TTaskParams = params
+        self._timer = None
 
     def __repr__(self):
         return f"<TaskWrapper {self._fn.__qualname__}>"
@@ -27,7 +28,7 @@ class TaskWrapper:
     def __call__(self, *args, **kwargs):
         return self._fn(*args, **kwargs)
 
-    def import_path(self):
+    def import_path(self) -> str:
         return f"{self._fn.__module__}.{self._fn.__qualname__}"
 
     def submit(self, *args, **kwargs):
@@ -57,8 +58,8 @@ class TaskRun:
         self.retries = 0
         self.data: TRunArgs = (path, args, kwargs, params)
 
-    def retry(self) -> Task:
-        manager = current_manager.value
+    def retry(self: TaskRun):
+        manager: Donald = current_manager.value
         self.retries += 1
         return manager.submit(self)
 

@@ -1,10 +1,12 @@
 from asyncio.coroutines import iscoroutinefunction
 from functools import wraps
 from importlib import import_module
-from typing import Any, Callable, Coroutine, TypeVar, overload
+from typing import Any, Callable, Coroutine, Optional, overload
+
+from donald.types import TV, TVAsyncFn
 
 
-def import_obj(path: str, obj_name: str = None) -> Any:
+def import_obj(path: str, obj_name: Optional[str] = None) -> Any:
     """Import an object from a string path."""
     module_path, _, obj_path = path.rpartition(".")
     try:
@@ -14,17 +16,13 @@ def import_obj(path: str, obj_name: str = None) -> Any:
         raise ImportError(f"Could not import {path!r}") from exc
 
 
-TRes = TypeVar("TRes")
-TCoroFn = TypeVar("TCoroFn", bound=Callable[..., Coroutine])
-
-
 @overload
-def to_coroutinefn(fn: TCoroFn) -> TCoroFn:
+def to_coroutinefn(fn: TVAsyncFn) -> TVAsyncFn:
     ...
 
 
 @overload
-def to_coroutinefn(fn: Callable[..., TRes]) -> Callable[..., Coroutine[Any, Any, TRes]]:
+def to_coroutinefn(fn: Callable[..., TV]) -> Callable[..., Coroutine[Any, Any, TV]]:
     ...
 
 

@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import signal
 from functools import wraps
+from typing import Awaitable, Callable
 
 import click
 
+from .types import TV
 from .utils import import_obj
 
 
@@ -15,7 +17,7 @@ def import_manager(path: str) -> Donald:
     return manager
 
 
-def process_await(fn):
+def process_await(fn: Callable[..., Awaitable[TV]]) -> Callable[..., TV]:
     @wraps(fn)
     @click.pass_context
     def wrapper(ctx, *args, **kwargs):
@@ -30,14 +32,14 @@ def process_await(fn):
     "-M", "--manager", "manager", required=True, help="Python path to the manager"
 )
 @click.pass_context
-def cli(ctx, manager):
+def cli(ctx: click.Context, manager: str):
     ctx.obj["manager"] = import_manager(manager)
 
 
 @cli.command(help="Launch a worker")
 @click.option("-S", "--scheduler", "scheduler", is_flag=True, help="Start a scheduler")
 @process_await
-async def worker(ctx, scheduler=False, **params):
+async def worker(ctx: click.Context, scheduler: bool = False, **params):
     """Launch a worker."""
 
     loop = ctx.obj["loop"]
@@ -66,7 +68,7 @@ async def worker(ctx, scheduler=False, **params):
 
 @cli.command(help="Launch a scheduler")
 @process_await
-async def scheduler(ctx, **params):
+async def scheduler(ctx: click.Context, **params):
 
     loop = ctx.obj["loop"]
 

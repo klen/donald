@@ -5,14 +5,14 @@ from asyncio.exceptions import CancelledError
 from asyncio.locks import Event, Semaphore
 from asyncio.tasks import Task, create_task, gather, sleep
 from numbers import Number
-from typing import AsyncIterator, Callable, Dict, Iterable, Set, cast
+from typing import AsyncIterator, Callable, Dict, Iterable, Optional, Set, cast
 
 from async_timeout import timeout as async_timeout
 
 from . import __version__, logger
 from .backend import BaseBackend
 from .types import TRunArgs, TTaskParams, TWorkerParams
-from .utils import import_obj, to_coroutinefn
+from .utils import import_obj
 
 BANNER = r"""
 
@@ -43,8 +43,7 @@ class Worker:
         self._params = cast(TWorkerParams, dict(self.defaults, **params))
         self._task_params = cast(TTaskParams, self._params["task_defaults"] or {})
 
-        on_error = self._params.get("on_error")
-        self.on_error = on_error and to_coroutinefn(on_error)
+        self.on_error = self._params.get("on_error")
 
         max_tasks = self._params["max_tasks"]
         self._sem = max_tasks and Semaphore(max_tasks - 1)
@@ -78,17 +77,17 @@ class Worker:
 
         on_stop = self._params.get("on_stop")
         if on_stop:
-            await to_coroutinefn(on_stop)()
+            await on_stop()
 
         self._finished.set()
 
     def wait(self):
         return self._finished.wait()
 
-    async def run_worker(self):
+    async def run_worker(self: Worker):
         on_start = self._params.get("on_start")
         if on_start:
-            await to_coroutinefn(on_start)()
+            await on_start()
 
         logger.info("Worker started")
         task_iter: AsyncIterator[TRunArgs] = await self._backend.subscribe()
@@ -101,9 +100,19 @@ class Worker:
                 logger.exception("Failed to get task: %s", path, exc_info=exc)
                 continue
 
-            params = dict(self._task_params, **params)
+            task_params = dict(self._task_params, **params)
             name = tw.import_path()
-            task = create_task(self.run_task(tw, args, kwargs, **params), name=name)
+            task = create_task(
+                self.run_task(
+                    tw,
+                    args,
+                    kwargs,
+                    timeout=task_params.pop("timeout", None),  # type: ignore
+                    delay=task_params.pop("delay", None),  # type: ignore
+                    **task_params,
+                ),
+                name=name,
+            )
             tasks.add(task)
             task.add_done_callback(finish_task)
             logger.info("Run: '%s' (%d)", name, id(task))
@@ -115,8 +124,9 @@ class Worker:
         corofunc: Callable,
         args: Iterable,
         kwargs: Dict,
-        timeout: Number = None,
-        delay: Number = None,
+        *,
+        timeout: Optional[Number] = None,
+        delay: Optional[Number] = None,
         **params,
     ):
         # Process delay

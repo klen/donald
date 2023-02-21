@@ -1,22 +1,27 @@
 import asyncio
 import random
 from pickle import dumps, loads
-from typing import AsyncIterator, Dict, Type
+from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, Mapping, Type
 from urllib.parse import urlparse
 from uuid import uuid4
 
 from . import logger
 from .types import TBackendType, TRunArgs
 
+if TYPE_CHECKING:
+    from aioamqp import Channel
+    from redis.asyncio import Redis
+
 
 class BaseBackend:
 
     type: TBackendType
-    defaults: Dict = {}
+    defaults: Mapping = {}
 
-    def __init__(self, params: Dict):
+    def __init__(self, params: Mapping):
         self.is_connected = False
         self.params = dict(self.defaults, **params)
+        self.__backend__: Any = None
 
     async def connect(self):
         logger.info("Connecting to Tasks Backend: %s", self.type)
@@ -52,7 +57,19 @@ class BaseBackend:
 class MemoryBackend(BaseBackend):
     type: TBackendType = "memory"
 
-    rx = None
+    @property
+    def rx(self) -> asyncio.Queue:
+        if self.__backend__ is None:
+            raise RuntimeError("Tasks Backend is not connected")
+
+        return self.__backend__
+
+    async def _connect(self):
+        self.__backend__ = asyncio.Queue()
+
+    async def _submit(self, data):
+        self.rx.put_nowait(data)
+        return True
 
     async def subscribe(self):
         await self.connect()
@@ -68,13 +85,6 @@ class MemoryBackend(BaseBackend):
 
         return iter_tasks()
 
-    async def _connect(self):
-        self.rx = asyncio.Queue()
-
-    async def _submit(self, data):
-        self.rx.put_nowait(data)
-        return True
-
 
 class RedisBackend(BaseBackend):
     type: TBackendType = "redis"
@@ -82,12 +92,18 @@ class RedisBackend(BaseBackend):
         "url": "redis://localhost:6379/0",
         "channel": "donald",
     }
-    redis = None
+
+    @property
+    def redis(self) -> "Redis":
+        if self.__backend__ is None:
+            raise RuntimeError("Tasks Backend is not connected")
+
+        return self.__backend__
 
     async def _connect(self):
         from redis.asyncio import from_url
 
-        self.redis = from_url(self.params["url"])
+        self.__backend__ = from_url(self.params["url"])
 
     async def _disconnect(self):
         await self.redis.close()
@@ -119,7 +135,17 @@ class AMQPBackend(BaseBackend):
         "exchange": "",
     }
 
-    transport = protocol = channel = None
+    def __init__(self, params: Mapping):
+        super().__init__(params)
+        self.__protocol__ = None
+        self.__channel__ = None
+
+    @property
+    def channel(self) -> "Channel":
+        if self.__backend__ is None:
+            raise RuntimeError("Tasks Backend is not connected")
+
+        return self.__channel__
 
     async def _connect(self):
         from aioamqp import connect
@@ -134,7 +160,7 @@ class AMQPBackend(BaseBackend):
         )
 
         try:
-            self.transport, self.protocol = await connect(
+            self.__backend__, self.__protocol__ = await connect(
                 host=host,
                 port=port,
                 virtualhost=vhost,
@@ -147,15 +173,17 @@ class AMQPBackend(BaseBackend):
             logger.exception("Failed to connect to AMQP")
             return asyncio.create_task(self.on_error(exc))
 
-        self.channel = await self.protocol.channel()
-        await self.channel.queue_declare(queue_name=self.params["queue"], durable=True)
-        await self.channel.basic_qos(
+        self.__channel__ = await self.__protocol__.channel()
+        await self.__channel__.queue_declare(
+            queue_name=self.params["queue"], durable=True
+        )
+        await self.__channel__.basic_qos(
             prefetch_count=1, prefetch_size=0, connection_global=False
         )
 
     async def _disconnect(self):
-        await self.protocol.close(no_wait=True)
-        self.transport.close()
+        await self.__protocol__.close(no_wait=True)
+        self.__backend__.close()
 
     reconnecting = None
 
@@ -194,7 +222,7 @@ class AMQPBackend(BaseBackend):
             rx.put_nowait(body)
             await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
 
-        await self.channel.basic_consume(consumer, self.params["queue"])
+        await self.__channel__.basic_consume(consumer, self.params["queue"])
 
         async def iter_tasks():
             while self.is_connected:
