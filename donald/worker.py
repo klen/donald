@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from asyncio import iscoroutine
 from asyncio.exceptions import CancelledError
 from asyncio.locks import Event, Semaphore
 from asyncio.tasks import Task, create_task, gather, sleep
@@ -149,7 +150,8 @@ class Worker:
                 )
                 if self.on_error:
                     coro = self.on_error(exc)
-                    create_task(coro)
+                    if iscoroutine(coro):
+                        create_task(coro)
         except CancelledError:
             pass
 
