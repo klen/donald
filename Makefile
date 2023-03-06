@@ -22,9 +22,8 @@ clean:
 .PHONY: release
 VERSION?=minor
 # target: release - Bump version
-release:
-	@pip install bump2version
-	@bump2version $(VERSION)
+release: $(VIRTUAL_ENV)
+	@$(VIRTUAL_ENV)/bin/bump2version $(VERSION)
 	@git checkout master
 	@git merge develop
 	@git checkout develop
@@ -46,10 +45,10 @@ major:
 #  Development
 # =============
 
-$(VIRTUAL_ENV): $(CURDIR)/requirements/requirements.txt $(CURDIR)/requirements/requirements-tests.txt
+$(VIRTUAL_ENV): pyproject.toml
 	python -m venv $(VIRTUAL_ENV)
-	$(VIRTUAL_ENV)/bin/pip install wheel
-	$(VIRTUAL_ENV)/bin/pip install -e .[tests]
+	$(VIRTUAL_ENV)/bin/pip install -e .[tests,dev]
+	$(VIRTUAL_ENV)/bin/pre-commit install --hook-type pre-push
 	touch $(VIRTUAL_ENV)
 
 

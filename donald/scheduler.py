@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from asyncio import sleep
 from asyncio.locks import Event
 from asyncio.tasks import create_task, gather
@@ -9,7 +11,7 @@ from crontab import CronTab
 
 from donald.tasks import TaskWrapper
 
-from . import logger
+from .utils import SchedulerNotReadyError, logger
 
 TInterval = Union[timedelta, Number, CronTab]
 
@@ -38,7 +40,7 @@ class Scheduler:
 
     def wait(self):
         if self._finished is None:
-            raise RuntimeError("Scheduler is not started.")
+            raise SchedulerNotReadyError
         return self._finished.wait()
 
     async def join(self):
@@ -48,8 +50,7 @@ class Scheduler:
     def schedule(self, interval: TInterval) -> Callable[[TaskWrapper], TaskWrapper]:
         """Schedule a task to run periodically."""
 
-        if callable(interval):
-            raise RuntimeError("@manager.schedule(interval) should be used.")
+        assert not callable(interval), "Use @manager.schedule(interval)"
 
         if isinstance(interval, str) and " " in interval:
             interval = CronTab(interval)
@@ -58,14 +59,17 @@ class Scheduler:
             timer = interval.total_seconds
 
         elif isinstance(interval, CronTab):
-            timer = lambda: interval.next(default_utc=True)  # type: ignore
+
+            def timer():
+                return interval.next(default_utc=True)
 
         else:
-            timer = lambda: float(interval)  # type: ignore
+
+            def timer():
+                return float(interval)
 
         def wrapper(task: TaskWrapper):
-            if not isinstance(task, TaskWrapper):
-                raise RuntimeError("Only tasks can be scheduled.")
+            assert isinstance(task, TaskWrapper), "Only tasks can be scheduled."
 
             async def scheduler():
                 while True:

@@ -15,17 +15,16 @@ jobs:
 
     - uses: actions/checkout@main
       with:
-        fetch-depth: 5
+        fetch-depth: 2
 
     - uses: actions/setup-python@main
       with:
-        python-version: 3.9
+        python-version: '3.11'
 
     - name: Build package
       run: |
-        pip install wheel
-        python setup.py bdist_wheel
-        python setup.py sdist
+        pip install build
+        python -m build
 
     - name: Publish distribution 📦 to PyPI
       uses: pypa/gh-action-pypi-publish@master

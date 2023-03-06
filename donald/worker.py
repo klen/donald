@@ -5,19 +5,32 @@ from asyncio import iscoroutine
 from asyncio.exceptions import CancelledError
 from asyncio.locks import Event, Semaphore
 from asyncio.tasks import Task, create_task, gather, sleep
-from numbers import Number
-from typing import AsyncIterator, Callable, Dict, Iterable, Optional, Set, cast
+from contextlib import suppress
+from importlib import metadata
+from typing import (
+    TYPE_CHECKING,
+    AsyncIterator,
+    Callable,
+    Dict,
+    Iterable,
+    Optional,
+    Set,
+    cast,
+)
 
 from async_timeout import timeout as async_timeout
 
-from . import __version__, logger
-from .backend import BaseBackend
 from .types import TRunArgs, TTaskParams, TWorkerParams
-from .utils import import_obj
+from .utils import import_obj, logger
+
+if TYPE_CHECKING:
+    from numbers import Number
+
+    from .backend import BaseBackend
 
 BANNER = r"""
 
-$$$$$$$\                                $$\       $$\ 
+$$$$$$$\                                $$\       $$\
 $$  __$$\                               $$ |      $$ |
 $$ |  $$ | $$$$$$\  $$$$$$$\   $$$$$$\  $$ | $$$$$$$ |
 $$ |  $$ |$$  __$$\ $$  __$$\  \____$$\ $$ |$$  __$$ |
@@ -55,8 +68,8 @@ class Worker:
     def start(self):
         """Start the worker."""
         msg = self._params.get("show_banner") and BANNER or ""
-        msg += f"\n\nDonald v{__version__} - Worker"
-        msg += f"\nBackend: {self._backend.type}"
+        msg += f"\n\nDonald v{metadata.version('donald')} - Worker"
+        msg += f"\nBackend: {self._backend.backend_type}"
         msg += f"\nPID: {os.getpid()}\n"
 
         logger.info(msg)
@@ -101,17 +114,10 @@ class Worker:
                 logger.exception("Failed to get task: %s", path, exc_info=exc)
                 continue
 
-            task_params = dict(self._task_params, **params)
+            task_params = cast(TTaskParams, dict(self._task_params, **params))
             name = tw.import_path()
             task = create_task(
-                self.run_task(
-                    tw,
-                    args,
-                    kwargs,
-                    timeout=task_params.pop("timeout", None),  # type: ignore
-                    delay=task_params.pop("delay", None),  # type: ignore
-                    **task_params,
-                ),
+                self.run_task(tw, args, kwargs, **task_params),
                 name=name,
             )
             tasks.add(task)
@@ -128,7 +134,7 @@ class Worker:
         *,
         timeout: Optional[Number] = None,
         delay: Optional[Number] = None,
-        **params,
+        **_,
     ):
         # Process delay
         if delay:
@@ -142,18 +148,19 @@ class Worker:
         return await corofunc(*args, **kwargs)
 
     def finish_task(self, task: Task):
-        try:
+        with suppress(CancelledError):
             exc = task.exception()
             if exc:
                 logger.exception(
-                    "Fail: '%s' (%d)", task.get_name(), id(task), exc_info=exc
+                    "Fail: '%s' (%d)",
+                    task.get_name(),
+                    id(task),
+                    exc_info=exc,
                 )
                 if self.on_error:
                     coro = self.on_error(exc)
                     if iscoroutine(coro):
                         create_task(coro)
-        except CancelledError:
-            pass
 
         if task in self._tasks:
             self._tasks.remove(task)
@@ -167,3 +174,4 @@ class Worker:
         if tasks:
             logger.info("Waiting for %d tasks to complete", len(self._tasks))
             return await gather(*tasks, return_exceptions=True)
+        return None

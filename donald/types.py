@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 from numbers import Number
-from typing import (Any, Awaitable, Callable, Coroutine, Dict, Literal, Optional, Tuple, TypedDict,
-                    TypeVar)
+from typing import (
+    Any,
+    Callable,
+    Coroutine,
+    Dict,
+    Literal,
+    Optional,
+    Tuple,
+    TypedDict,
+    TypeVar,
+)
 
 TWorkerOnFn = Callable[[], Coroutine]
 TVWorkerOnFn = TypeVar("TVWorkerOnFn", bound=TWorkerOnFn)
@@ -34,9 +43,6 @@ class TWorkerParams(TypedDict):
     on_stop: Optional[TWorkerOnFn]
     on_error: Optional[TWorkerOnErrFn]
     show_banner: Optional[bool]
-    # "timeout": Number,
-    # "task_retry": int,
-    # "task_retry_delay": Number,
 
 
 class TManagerParams(TypedDict):

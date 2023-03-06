@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from asyncio.tasks import Task
-from typing import Callable, Dict, Tuple, cast
+from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple, cast
 
-from . import current_manager
 from .types import TRunArgs, TTaskParams
-from .utils import to_coroutinefn
+from .utils import current_manager, to_coroutinefn
+
+if TYPE_CHECKING:
+    from .manager import Donald
 
 
 class TaskWrapper:
@@ -14,8 +15,7 @@ class TaskWrapper:
     __slots__ = ("_manager", "_fn", "_params", "_timer")
 
     def __init__(self, manager: Donald, fn: Callable, params: TTaskParams):
-        if "<locals>" in fn.__qualname__:
-            raise ValueError("Cannot use local functions as tasks")
+        assert "<locals>" not in fn.__qualname__, "Can't use local functions as tasks"
 
         self._manager = manager
         self._fn = to_coroutinefn(fn)
@@ -34,9 +34,9 @@ class TaskWrapper:
     def submit(self, *args, **kwargs):
         return self.apply_submit(*args, kwargs=kwargs)
 
-    def apply_submit(self, *args, kwargs: Dict = {}, **params):
+    def apply_submit(self, *args, kwargs: Optional[Dict] = None, **params):
         task_params = cast(TTaskParams, dict(self._params, **params))
-        res = TaskRun(self.import_path(), args, kwargs, task_params)
+        res = TaskRun(self.import_path(), args, kwargs or {}, task_params)
         return self._manager.submit(res)
 
 
@@ -53,7 +53,7 @@ class TaskRun:
         params: TTaskParams,
     ):
         if params.get("bind"):
-            args = (self,) + args
+            args = (self, *args)
 
         self.retries = 0
         self.data: TRunArgs = (path, args, kwargs, params)
@@ -66,6 +66,3 @@ class TaskRun:
     def __repr__(self):
         path = self.data[0]
         return f"<TaskRun {path}>"
-
-
-from .manager import Donald

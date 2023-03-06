@@ -188,9 +188,9 @@ Development of starter happens at github: https://github.com/klen/donald
 License
 ========
 
-Licensed under a `BSD license`_.
+Licensed under a `MIT license`_.
 
 .. _links:
 
-.. _BSD license: http://www.linfo.org/bsdlicense.html
+.. _MIT license: http://opensource.org/licenses/MIT
 .. _klen: https://klen.github.io/

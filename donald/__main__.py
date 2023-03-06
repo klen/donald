@@ -3,12 +3,16 @@ from __future__ import annotations
 import asyncio
 import signal
 from functools import wraps
-from typing import Awaitable, Callable
+from typing import TYPE_CHECKING, Awaitable, Callable
 
 import click
 
-from .types import TV
 from .utils import import_obj
+
+if TYPE_CHECKING:
+    from donald.manager import Donald
+
+    from .types import TV
 
 
 def import_manager(path: str) -> Donald:
@@ -29,7 +33,11 @@ def process_await(fn: Callable[..., Awaitable[TV]]) -> Callable[..., TV]:
 
 @click.group()
 @click.option(
-    "-M", "--manager", "manager", required=True, help="Python path to the manager"
+    "-M",
+    "--manager",
+    "manager",
+    required=True,
+    help="Python path to the manager",
 )
 @click.pass_context
 def cli(ctx: click.Context, manager: str):
@@ -39,7 +47,7 @@ def cli(ctx: click.Context, manager: str):
 @cli.command(help="Launch a worker")
 @click.option("-S", "--scheduler", "scheduler", is_flag=True, help="Start a scheduler")
 @process_await
-async def worker(ctx: click.Context, scheduler: bool = False, **params):
+async def worker(ctx: click.Context, *, scheduler: bool = False, **params):
     """Launch a worker."""
 
     loop = ctx.obj["loop"]
@@ -68,8 +76,7 @@ async def worker(ctx: click.Context, scheduler: bool = False, **params):
 
 @cli.command(help="Launch a scheduler")
 @process_await
-async def scheduler(ctx: click.Context, **params):
-
+async def scheduler(ctx: click.Context):
     loop = ctx.obj["loop"]
 
     async def stop():
@@ -95,5 +102,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-from donald.manager import Donald

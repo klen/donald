@@ -9,7 +9,7 @@ manager = Donald(
 
 
 @manager.task
-async def async_task(res=42, timeout=None, error=False):
+async def async_task(res=42, timeout=None, *, error=False):
     if timeout:
         await asyncio.sleep(timeout)
 

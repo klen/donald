@@ -1,6 +1,0 @@
-redis       >= 4.2.0rc1
-hiredis
-pytest
-pytest-aio
-pytest-mypy
-pytest-redislite

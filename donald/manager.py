@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-from asyncio.tasks import create_task
+from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
-from typing import Callable, Optional, cast, overload
+from typing import Callable, Optional, Set, cast, overload
 
-from . import current_manager, logger
 from .backend import BACKENDS, BaseBackend
-from .types import TManagerParams, TTaskParams, TVWorkerOnErrFn, TVWorkerOnFn, TWorkerParams
+from .types import (
+    TManagerParams,
+    TTaskParams,
+    TVWorkerOnErrFn,
+    TVWorkerOnFn,
+    TWorkerParams,
+)
+from .utils import ManagerNotReadyError, current_manager, logger
 from .worker import Worker
 
 
@@ -28,6 +34,7 @@ class Donald:
         self.is_started = False
         self.setup(**params)
         self.scheduler = Scheduler()
+        self.submissions: Set[Task] = set()
         current_manager.value = self
 
     def __repr__(self):
@@ -35,12 +42,11 @@ class Donald:
 
     def setup(self: Donald, **params):
         """Setup the manager."""
-        if self.is_started:
-            raise RuntimeError("Manager is already started")
+        assert not self.is_started, "Manager is already started"
 
         self._params = cast(TManagerParams, dict(self._params, **params))
         self._backend = BACKENDS[self._params["backend"]](
-            self._params["backend_params"]
+            self._params["backend_params"],
         )
 
         logger.setLevel(self._params["log_level"].upper())
@@ -63,7 +69,8 @@ class Donald:
     def create_worker(self: Donald, **params):
         """Create a worker."""
         worker_params = cast(
-            TWorkerParams, dict(self._params["worker_params"], **params)
+            TWorkerParams,
+            dict(self._params["worker_params"], **params),
         )
         return Worker(self._backend, worker_params)
 
@@ -97,12 +104,15 @@ class Donald:
 
         return wrapper(fn)
 
-    def submit(self, run: TaskRun):
+    def submit(self, run: TaskRun) -> Task:
         """Submit a task to the backend."""
         if not self.is_started:
-            raise RuntimeError("Manager is not started")
+            raise ManagerNotReadyError
 
-        return create_task(self._backend.submit(run.data))
+        task = create_task(self._backend.submit(run.data))
+        self.submissions.add(task)
+        task.add_done_callback(self.submissions.discard)
+        return task
 
     def on_start(self, fn: TVWorkerOnFn) -> TVWorkerOnFn:
         """Register a function to be called on worker start."""
@@ -120,5 +130,5 @@ class Donald:
         return fn
 
 
-from .scheduler import Scheduler, TInterval
-from .tasks import TaskRun, TaskWrapper
+from .scheduler import Scheduler, TInterval  # noqa: E402
+from .tasks import TaskRun, TaskWrapper  # noqa: E402

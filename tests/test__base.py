@@ -1,3 +1,5 @@
+import pytest
+
 from donald import Donald
 from donald.manager import TaskWrapper
 
@@ -37,9 +39,5 @@ async def test_dont_wrap_local_tasks():
     def foo():
         return 1
 
-    try:
+    with pytest.raises(AssertionError):
         donald.task(foo)
-    except ValueError:
-        pass
-    else:
-        assert False, "Expected ValueError"

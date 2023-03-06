@@ -1,12 +1,13 @@
 import asyncio
 import random
+from contextlib import suppress
 from pickle import dumps, loads
 from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, Mapping, Type
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from . import logger
 from .types import TBackendType, TRunArgs
+from .utils import BackendNotReadyError, logger
 
 if TYPE_CHECKING:
     from aioamqp import Channel
@@ -14,8 +15,7 @@ if TYPE_CHECKING:
 
 
 class BaseBackend:
-
-    type: TBackendType
+    backend_type: TBackendType
     defaults: Mapping = {}
 
     def __init__(self, params: Mapping):
@@ -24,20 +24,20 @@ class BaseBackend:
         self.__backend__: Any = None
 
     async def connect(self):
-        logger.info("Connecting to Tasks Backend: %s", self.type)
+        logger.info("Connecting to Tasks Backend: %s", self.backend_type)
         await self._connect()
         self.is_connected = True
-        logger.info("Connected to Tasks Backend: %s", self.type)
+        logger.info("Connected to Tasks Backend: %s", self.backend_type)
 
     async def disconnect(self):
-        logger.info("Disconnecting from Tasks Backend: %s", self.type)
+        logger.info("Disconnecting from Tasks Backend: %s", self.backend_type)
         self.is_connected = False
         await self._disconnect()
-        logger.info("Disconnected from Tasks Backend: %s", self.type)
+        logger.info("Disconnected from Tasks Backend: %s", self.backend_type)
 
     def submit(self, data: TRunArgs):
         if not self.is_connected:
-            raise RuntimeError("Tasks Backend is not connected")
+            raise BackendNotReadyError
         _data = dumps(data)
         return self._submit(_data)
 
@@ -55,12 +55,12 @@ class BaseBackend:
 
 
 class MemoryBackend(BaseBackend):
-    type: TBackendType = "memory"
+    backend_type: TBackendType = "memory"
 
     @property
     def rx(self) -> asyncio.Queue:
         if self.__backend__ is None:
-            raise RuntimeError("Tasks Backend is not connected")
+            raise BackendNotReadyError
 
         return self.__backend__
 
@@ -87,7 +87,7 @@ class MemoryBackend(BaseBackend):
 
 
 class RedisBackend(BaseBackend):
-    type: TBackendType = "redis"
+    backend_type: TBackendType = "redis"
     defaults = {
         "url": "redis://localhost:6379/0",
         "channel": "donald",
@@ -96,7 +96,7 @@ class RedisBackend(BaseBackend):
     @property
     def redis(self) -> "Redis":
         if self.__backend__ is None:
-            raise RuntimeError("Tasks Backend is not connected")
+            raise BackendNotReadyError
 
         return self.__backend__
 
@@ -128,7 +128,7 @@ class RedisBackend(BaseBackend):
 
 
 class AMQPBackend(BaseBackend):
-    type: TBackendType = "amqp"
+    backend_type: TBackendType = "amqp"
     defaults = {
         "url": "amqp://guest:guest@localhost:5672/",
         "queue": "donald",
@@ -143,7 +143,7 @@ class AMQPBackend(BaseBackend):
     @property
     def channel(self) -> "Channel":
         if self.__backend__ is None:
-            raise RuntimeError("Tasks Backend is not connected")
+            raise BackendNotReadyError
 
         return self.__channel__
 
@@ -175,10 +175,13 @@ class AMQPBackend(BaseBackend):
 
         self.__channel__ = await self.__protocol__.channel()
         await self.__channel__.queue_declare(
-            queue_name=self.params["queue"], durable=True
+            queue_name=self.params["queue"],
+            durable=True,
         )
         await self.__channel__.basic_qos(
-            prefetch_count=1, prefetch_size=0, connection_global=False
+            prefetch_count=1,
+            prefetch_size=0,
+            connection_global=False,
         )
 
     async def _disconnect(self):
@@ -187,7 +190,7 @@ class AMQPBackend(BaseBackend):
 
     reconnecting = None
 
-    async def on_error(self, exc):
+    async def on_error(self, _):
         if not self.is_connected:
             return
 
@@ -201,24 +204,22 @@ class AMQPBackend(BaseBackend):
         async with self.reconnecting:
             logger.exception("AMQP Connection Error, reconnecting in 5 seconds")
             await asyncio.sleep(5 + random.random())
-            try:
+            with suppress(Exception):
                 await self.connect()
-            except Exception:
-                pass
 
     async def _submit(self, data):
         await self.channel.basic_publish(
             payload=data,
             exchange_name=self.params["exchange"],
             routing_key=self.params["queue"],
-            properties=dict(delivery_mode=2, message_id=f"{uuid4()}"),
+            properties={"delivery_mode": 2, "message_id": f"{uuid4()}"},
         )
         return True
 
     async def subscribe(self):
         rx = asyncio.Queue()
 
-        async def consumer(channel, body, envelope, properties):
+        async def consumer(channel, body, envelope, _):
             rx.put_nowait(body)
             await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
 

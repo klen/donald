@@ -4,7 +4,7 @@ import pytest
 from redis import Redis
 
 
-@pytest.fixture
+@pytest.fixture()
 def checklog(caplog):
     def _log_contains(msg, min_count=1):
         msgs = [r.message for r in caplog.records]
@@ -13,7 +13,7 @@ def checklog(caplog):
     return _log_contains
 
 
-@pytest.fixture
+@pytest.fixture()
 def sleep():
     async def _sleep(timeout=1e-2):
         await asyncio.sleep(timeout)
@@ -21,6 +21,6 @@ def sleep():
     return _sleep
 
 
-@pytest.fixture
+@pytest.fixture()
 def redis(redis_url):
     return Redis.from_url(redis_url)
