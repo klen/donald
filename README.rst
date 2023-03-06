@@ -1,4 +1,4 @@
-Donald 0.31.9
+Donald 0.32.0
 #############
 
 .. _description:
