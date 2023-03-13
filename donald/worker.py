@@ -148,6 +148,8 @@ class Worker:
         return await corofunc(*args, **kwargs)
 
     def finish_task(self, task: Task):
+        self._tasks.discard(task)
+
         with suppress(CancelledError):
             exc = task.exception()
             if exc:
@@ -162,10 +164,9 @@ class Worker:
                     if iscoroutine(coro):
                         create_task(coro)
 
-        if task in self._tasks:
-            self._tasks.remove(task)
-            if self._sem:
-                self._sem.release()
+        if self._sem:
+            self._sem.release()
+
         logger.info("Finished: '%s' (%d)", task.get_name(), id(task))
 
     async def join(self):
