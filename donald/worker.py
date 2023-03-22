@@ -60,7 +60,7 @@ class Worker:
         self.on_error = self._params.get("on_error")
 
         max_tasks = self._params["max_tasks"]
-        self._sem = max_tasks and Semaphore(max_tasks - 1)
+        self._sem = max_tasks and Semaphore(max_tasks - 1) or None
 
         self._tasks: Set[Task] = set()
         self._finished = Event()
@@ -107,8 +107,8 @@ class Worker:
         task_iter: AsyncIterator[TRunArgs] = await self._backend.subscribe()
         sem, tasks, finish_task = self._sem, self._tasks, self.finish_task
         async for task_msg in task_iter:
+            path, args, kwargs, params = task_msg
             try:
-                path, args, kwargs, params = task_msg
                 tw = import_obj(path)
             except Exception as exc:
                 logger.exception("Failed to get task: %s", path, exc_info=exc)

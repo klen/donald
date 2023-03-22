@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
-from typing import Callable, Optional, Set, cast, overload
+from typing import Callable, Optional, Set, Union, cast, overload
 
 from .backend import BACKENDS, BaseBackend
 from .types import (
@@ -93,7 +93,11 @@ class Donald:
     def task(self, **params) -> Callable[[Callable], TaskWrapper]:
         ...
 
-    def task(self, fn: Optional[Callable] = None, **params):
+    def task(
+        self,
+        fn: Optional[Callable] = None,
+        **params,
+    ) -> Union[Callable[[Callable], TaskWrapper], TaskWrapper]:
         """Decorator to wrap a function into a Task object."""
 
         def wrapper(fn: Callable) -> TaskWrapper:

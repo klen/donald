@@ -185,7 +185,11 @@ class AMQPBackend(BaseBackend):
         )
 
     async def _disconnect(self):
-        await self.__protocol__.close(no_wait=True)
+        proto = self.__protocol__
+        if proto is None:
+            raise BackendNotReadyError
+
+        await proto.close(no_wait=True)
         self.__backend__.close()
 
     reconnecting = None
@@ -223,7 +227,11 @@ class AMQPBackend(BaseBackend):
             rx.put_nowait(body)
             await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
 
-        await self.__channel__.basic_consume(consumer, self.params["queue"])
+        channel = self.__channel__
+        if channel is None:
+            raise BackendNotReadyError
+
+        await channel.basic_consume(consumer, self.params["queue"])
 
         async def iter_tasks():
             while self.is_connected:

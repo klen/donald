@@ -4,7 +4,6 @@ from asyncio import sleep
 from asyncio.locks import Event
 from asyncio.tasks import create_task, gather
 from datetime import timedelta
-from numbers import Number
 from typing import Callable, Union
 
 from crontab import CronTab
@@ -13,7 +12,7 @@ from donald.tasks import TaskWrapper
 
 from .utils import SchedulerNotReadyError, logger
 
-TInterval = Union[timedelta, Number, CronTab]
+TInterval = Union[timedelta, int, float, str, CronTab]
 
 
 class Scheduler:
@@ -52,21 +51,17 @@ class Scheduler:
 
         assert not callable(interval), "Use @manager.schedule(interval)"
 
-        if isinstance(interval, str) and " " in interval:
+        if isinstance(interval, str):
             interval = CronTab(interval)
 
         if isinstance(interval, timedelta):
             timer = interval.total_seconds
 
         elif isinstance(interval, CronTab):
-
-            def timer():
-                return interval.next(default_utc=True)
+            timer = lambda: interval.next(default_utc=True)  # type: ignore[union-attr]
 
         else:
-
-            def timer():
-                return float(interval)
+            timer = lambda: float(interval)  # type: ignore[arg-type]
 
         def wrapper(task: TaskWrapper):
             assert isinstance(task, TaskWrapper), "Only tasks can be scheduled."
