@@ -35,7 +35,7 @@ donald = "donald.__main__:main"
 
 [project.optional-dependencies]
 tests = [
-  "redis       >= 4.2.0rc1",
+  "redis       < 4.5.2",
   "pytest",
   "pytest-aio",
   "pytest-mypy",
