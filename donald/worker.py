@@ -11,6 +11,7 @@ from typing import (
     TYPE_CHECKING,
     AsyncIterator,
     Callable,
+    ClassVar,
     Dict,
     Iterable,
     Optional,
@@ -44,7 +45,7 @@ $$$$$$$  |\$$$$$$  |$$ |  $$ |\$$$$$$$ |$$ |\$$$$$$$ |
 
 
 class Worker:
-    defaults: TWorkerParams = {
+    defaults: ClassVar[TWorkerParams] = {
         "max_tasks": 0,
         "task_defaults": None,
         "on_start": None,
@@ -112,7 +113,7 @@ class Worker:
             path, args, kwargs, params = task_msg
             try:
                 tw = import_obj(path)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.exception("Failed to get task: %s", path, exc_info=exc)
                 continue
 
@@ -132,7 +133,7 @@ class Worker:
             if sem:
                 await sem.acquire()
 
-    async def run_task(
+    async def run_task(  # noqa: PLR0913
         self,
         corofunc: Callable,
         args: Iterable,

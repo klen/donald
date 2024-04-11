@@ -48,7 +48,7 @@ major:
 $(VIRTUAL_ENV): pyproject.toml
 	python -m venv $(VIRTUAL_ENV)
 	$(VIRTUAL_ENV)/bin/pip install -e .[tests,dev]
-	$(VIRTUAL_ENV)/bin/pre-commit install --hook-type pre-push
+	$(VIRTUAL_ENV)/bin/pre-commit install
 	touch $(VIRTUAL_ENV)
 
 
@@ -65,7 +65,7 @@ t test: $(VIRTUAL_ENV)
 	@$(VIRTUAL_ENV)/bin/pytest tests
 
 mypy: $(VIRTUAL_ENV)
-	mypy --install-types --non-interactive donald
+	mypy donald
 
 example: $(VIRTUAL_ENV)
 	$(VIRTUAL_ENV)/bin/python -m donald -M example.manager worker -S

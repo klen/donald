@@ -1,22 +1,25 @@
+from __future__ import annotations
+
 import asyncio
 import random
 from contextlib import suppress
 from pickle import dumps, loads
-from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, Mapping, Type
+from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Dict, Mapping, Type
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from .types import TBackendType, TRunArgs
 from .utils import BackendNotReadyError, logger
 
 if TYPE_CHECKING:
     from aioamqp import Channel
     from redis.asyncio import Redis
 
+    from .types import TBackendType, TRunArgs
+
 
 class BaseBackend:
     backend_type: TBackendType
-    defaults: Mapping = {}
+    defaults: ClassVar[Mapping] = {}
 
     def __init__(self, params: Mapping):
         self.is_connected = False
@@ -88,7 +91,7 @@ class MemoryBackend(BaseBackend):
 
 class RedisBackend(BaseBackend):
     backend_type: TBackendType = "redis"
-    defaults = {
+    defaults: ClassVar = {
         "url": "redis://localhost:6379/0",
         "channel": "donald",
     }
@@ -129,7 +132,7 @@ class RedisBackend(BaseBackend):
 
 class AMQPBackend(BaseBackend):
     backend_type: TBackendType = "amqp"
-    defaults = {
+    defaults: ClassVar = {
         "url": "amqp://guest:guest@localhost:5672/",
         "queue": "donald",
         "exchange": "",
@@ -249,3 +252,5 @@ BACKENDS: Dict[TBackendType, Type[BaseBackend]] = {
     "redis": RedisBackend,
     "amqp": AMQPBackend,
 }
+
+# ruff: noqa: S301, S311

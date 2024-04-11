@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
-from typing import Callable, Optional, Set, Union, cast, overload
+from typing import Callable, ClassVar, Optional, Set, Union, cast, overload
 
 from .backend import BACKENDS, BaseBackend
 from .types import (
@@ -19,7 +19,7 @@ from .worker import Worker
 class Donald:
     """Manage tasks and workers."""
 
-    defaults: TManagerParams = {
+    defaults: ClassVar[TManagerParams] = {
         "log_level": "INFO",
         "log_config": None,
         "backend": "memory",
