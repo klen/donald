@@ -20,6 +20,8 @@ from typing import (
 
 from async_timeout import timeout as async_timeout
 
+from donald.tasks import TaskWrapper
+
 from .types import TRunArgs, TTaskParams, TWorkerParams
 from .utils import import_obj, logger
 
@@ -112,6 +114,10 @@ class Worker:
                 tw = import_obj(path)
             except Exception as exc:
                 logger.exception("Failed to get task: %s", path, exc_info=exc)
+                continue
+
+            if not isinstance(tw, TaskWrapper):
+                logger.error("Invalid task: %s", path)
                 continue
 
             task_params = cast(TTaskParams, dict(self._task_params, **params))
