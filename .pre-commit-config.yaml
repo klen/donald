@@ -35,7 +35,7 @@ repos:
   hooks:
   - id: ruff
     name: ruff
-    entry: ruff donald
+    entry: ruff check donald
     language: system
     pass_filenames: false
     files: \.py$
@@ -56,4 +56,3 @@ repos:
     pass_filenames: false
     files: \.py$
     stages: ["pre-push"]
-

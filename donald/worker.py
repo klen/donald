@@ -136,7 +136,7 @@ class Worker:
             if sem:
                 await sem.acquire()
 
-    async def run_task(  # noqa: PLR0913
+    async def run_task(
         self,
         corofunc: Callable,
         args: Iterable,
