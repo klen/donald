@@ -42,7 +42,7 @@ jobs:
       run: mypy --install-types --non-interactive
 
     - name: Check code
-      run: ruff donald
+      run: ruff check donald
 
     - name: Test with Pytest
       run: pytest tests
