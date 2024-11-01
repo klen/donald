@@ -21,9 +21,9 @@ classifiers = [
 ]
 dependencies = [
   "aioamqp       >= 0.15.0",
-  "async_timeout >= 4.0.2",
   "click         >= 6.7",
   "crontab       >= 0.22.0",
+  "async-timeout;python_version<'3.11'",
 ]
 
 [project.urls]

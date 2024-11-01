@@ -19,7 +19,10 @@ from typing import (
     cast,
 )
 
-from async_timeout import timeout as async_timeout
+try:
+    from asyncio import timeout as async_timeout  # type: ignore[attr-defined]
+except ImportError:  # python 39, 310
+    from async_timeout import timeout as async_timeout  # type: ignore[assignment]
 
 from donald.tasks import TaskWrapper
 
