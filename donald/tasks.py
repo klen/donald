@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Callable, cast
 
 from .types import TRunArgs, TTaskParams
 from .utils import current_manager, to_coroutinefn
@@ -34,7 +34,7 @@ class TaskWrapper:
     def submit(self, *args, **kwargs):
         return self.apply_submit(*args, kwargs=kwargs)
 
-    def apply_submit(self, *args, kwargs: Optional[Dict] = None, **params):
+    def apply_submit(self, *args, kwargs: dict | None = None, **params):
         task_params = cast(TTaskParams, dict(self._params, **params))
         res = TaskRun(self.import_path(), args, kwargs or {}, task_params)
         return self._manager.submit(res)
@@ -48,8 +48,8 @@ class TaskRun:
     def __init__(
         self,
         path: str,
-        args: Tuple,
-        kwargs: Dict,
+        args: tuple,
+        kwargs: dict,
         params: TTaskParams,
     ):
         if params.get("bind"):

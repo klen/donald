@@ -1,17 +1,7 @@
 from __future__ import annotations
 
 from numbers import Number
-from typing import (
-    Any,
-    Callable,
-    Coroutine,
-    Dict,
-    Literal,
-    Optional,
-    Tuple,
-    TypedDict,
-    TypeVar,
-)
+from typing import Any, Callable, Coroutine, Literal, Optional, TypedDict, TypeVar
 
 TWorkerOnFn = Callable[[], Coroutine]
 TVWorkerOnFn = TypeVar("TVWorkerOnFn", bound=TWorkerOnFn)
@@ -33,7 +23,7 @@ TTaskParams = TypedDict(
     },
 )
 
-TRunArgs = Tuple[str, Tuple, Dict[str, Any], TTaskParams]
+TRunArgs = tuple[str, tuple, dict[str, Any], TTaskParams]
 
 
 class TWorkerParams(TypedDict):
@@ -47,7 +37,7 @@ class TWorkerParams(TypedDict):
 
 class TManagerParams(TypedDict):
     backend: TBackendType
-    backend_params: Dict
-    log_config: Optional[Dict]
+    backend_params: dict
+    log_config: dict | None
     log_level: str
     worker_params: TWorkerParams

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
-from typing import Callable, ClassVar, Optional, Set, Union, cast, overload
+from typing import Callable, ClassVar, cast, overload
 
 from .backend import BACKENDS, BaseBackend
 from .types import (
@@ -34,7 +34,7 @@ class Donald:
         self.is_started = False
         self.setup(**params)
         self.scheduler = Scheduler()
-        self.submissions: Set[Task] = set()
+        self.submissions: set[Task] = set()
         current_manager.value = self
 
     def __repr__(self):
@@ -95,9 +95,9 @@ class Donald:
 
     def task(
         self,
-        fn: Optional[Callable] = None,
-        **params,
-    ) -> Union[Callable[[Callable], TaskWrapper], TaskWrapper]:
+        fn: Callable | None = None,
+        **params
+    ) -> Callable[[Callable], TaskWrapper] | TaskWrapper:
         """Decorator to wrap a function into a Task object."""
 
         def wrapper(fn: Callable) -> TaskWrapper:

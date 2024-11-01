@@ -4,7 +4,7 @@ import asyncio
 import random
 from contextlib import suppress
 from pickle import dumps, loads
-from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Dict, Mapping, Type
+from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Mapping
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -247,7 +247,7 @@ class AMQPBackend(BaseBackend):
         return iter_tasks()
 
 
-BACKENDS: Dict[TBackendType, Type[BaseBackend]] = {
+BACKENDS: dict[TBackendType, type[BaseBackend]] = {
     "memory": MemoryBackend,
     "redis": RedisBackend,
     "amqp": AMQPBackend,

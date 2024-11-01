@@ -3,7 +3,7 @@ name = "donald"
 version = "0.32.5"
 description = "Task manager for asyncio"
 readme = "README.rst"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = { "text" = "MIT License" }
 authors = [{ name = "Kirill Klenov", email = "horneds@gmail.com" }]
 keywords = ["asyncio", "tasks", "queue"]
@@ -13,10 +13,10 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Framework :: AsyncIO",
 ]
 dependencies = [
@@ -34,9 +34,9 @@ repository = "https://github.com/klen/donald"
 donald = "donald.__main__:main"
 
 [project.optional-dependencies]
-tests = ["redis       < 4.5.2", "pytest", "pytest-aio", "pytest-mypy", "pytest-redislite", "ruff"]
+tests = ["redis", "types-redis", "pytest", "pytest-aio", "pytest-mypy", "pytest-redislite", "ruff"]
 dev = ["pre-commit", "refurb", "bump2version"]
-redis = ["redis >= 4.2.0rc1"]
+redis = ["redis"]
 
 [tool.setuptools]
 packages = ['donald']
@@ -54,7 +54,7 @@ ignore_missing_imports = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py38,py39,py310,py311,pypy39
+envlist = py39,py310,py311,py312,pypy39
 
 [testenv]
 deps = -e .[tests]
@@ -69,7 +69,7 @@ commands =
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py39"
 exclude = [".venv", "docs", "example.py"]
 
 [tool.ruff.lint]
@@ -95,5 +95,5 @@ ignore = [
 
 [tool.black]
 line-length = 100
-target-version = ["py38", "py39", "py310", "py311"]
+target-version = ["py39", "py310", "py311", "py312"]
 preview = true

@@ -7,22 +7,12 @@ from asyncio.locks import Event, Semaphore
 from asyncio.tasks import Task, create_task, gather, sleep
 from contextlib import suppress
 from importlib import metadata
-from typing import (
-    TYPE_CHECKING,
-    AsyncIterator,
-    Callable,
-    ClassVar,
-    Dict,
-    Iterable,
-    Optional,
-    Set,
-    cast,
-)
+from typing import TYPE_CHECKING, AsyncIterator, Callable, ClassVar, Iterable, cast
 
 try:
     from asyncio import timeout as async_timeout  # type: ignore[attr-defined]
 except ImportError:  # python 39, 310
-    from async_timeout import timeout as async_timeout  # type: ignore[assignment]
+    from async_timeout import timeout as async_timeout  # type: ignore[assignment, no-redef]
 
 from donald.tasks import TaskWrapper
 
@@ -68,7 +58,7 @@ class Worker:
         max_tasks = self._params["max_tasks"]
         self._sem = max_tasks and Semaphore(max_tasks - 1) or None
 
-        self._tasks: Set[Task] = set()
+        self._tasks: set[Task] = set()
         self._finished = Event()
 
     def start(self):
@@ -140,10 +130,10 @@ class Worker:
         self,
         corofunc: Callable,
         args: Iterable,
-        kwargs: Dict,
+        kwargs: dict,
         *,
-        timeout: Optional[Number] = None,
-        delay: Optional[Number] = None,
+        timeout: Number | None = None,
+        delay: Number | None = None,
         **_,
     ):
         # Process delay
