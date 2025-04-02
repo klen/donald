@@ -2,17 +2,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Unpack, cast
 
-from .types import TInterval, TRunArgs, TTaskParams, TTaskParamsPartial
 from .utils import current_manager, to_coroutinefn
 
 if TYPE_CHECKING:
     from .manager import Donald
+    from .types import TInterval, TRunArgs, TTaskParams, TTaskParamsPartial
 
 
 class TaskWrapper:
     """Wrap a given function into a Task object."""
 
-    __slots__ = ("_manager", "_fn", "_params", "_failback")
+    __slots__ = ("_failback", "_fn", "_manager", "_params")
 
     def __init__(self, manager: Donald, fn: Callable, /,  # noqa: PLR0913
                  bind: bool = False, delay: float = 0, timeout: float = 0,  # noqa: FBT001, FBT002
@@ -43,7 +43,7 @@ class TaskWrapper:
         return f"{fn.__module__}.{fn.__qualname__}"
 
     def get_run(self, *args, kwargs: dict, **params: Unpack[TTaskParamsPartial]) -> TaskRun:
-        task_params = cast(TTaskParams, dict(self._params, **params))
+        task_params = cast("TTaskParams", dict(self._params, **params))
         return TaskRun(self.import_path(self._fn), args, kwargs or {}, task_params)
 
     def submit(self, *args, **kwargs):

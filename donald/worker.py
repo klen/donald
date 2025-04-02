@@ -17,12 +17,12 @@ except ImportError:  # python 39, 310
 
 from donald.tasks import TaskRun, TaskWrapper
 
-from .types import TRunArgs, TTaskParams, TWorkerParams
 from .utils import import_obj, logger
 
 if TYPE_CHECKING:
 
     from .backend import BaseBackend
+    from .types import TRunArgs, TTaskParams, TWorkerParams
 
 BANNER = r"""
 
@@ -50,20 +50,20 @@ class Worker:
     def __init__(self, backend: BaseBackend, params: TWorkerParams):
         self._backend = backend
         self._runner = None
-        self._params = cast(TWorkerParams, dict(self.defaults, **params))
-        self._task_params = cast(TTaskParams, self._params["task_defaults"] or {})
+        self._params = cast("TWorkerParams", dict(self.defaults, **params))
+        self._task_params = cast("TTaskParams", self._params["task_defaults"] or {})
 
         self.on_error = self._params.get("on_error")
 
         max_tasks = self._params["max_tasks"]
-        self._sem = max_tasks and Semaphore(max_tasks - 1) or None
+        self._sem = (max_tasks and Semaphore(max_tasks - 1)) or None
 
         self._tasks: set[Task] = set()
         self._finished = Event()
 
     def start(self):
         """Start the worker."""
-        msg = self._params.get("show_banner") and BANNER or ""
+        msg = (self._params.get("show_banner") and BANNER) or ""
         msg += f"\n\nDonald v{metadata.version('donald')} - Worker"
         msg += f"\nBackend: {self._backend.backend_type}"
         msg += f"\nPID: {os.getpid()}\n"
@@ -114,7 +114,7 @@ class Worker:
                 logger.error("Invalid task: %s", path)
                 continue
 
-            task_params = cast(TTaskParams, dict(self._task_params, **params))
+            task_params = cast("TTaskParams", dict(self._task_params, **params))
             task = create_task(self.run_task(tw, args, kwargs, **task_params), name=path)
             tasks.add(task)
             task.add_done_callback(finish_task)
@@ -138,12 +138,12 @@ class Worker:
     ):
         # Process delay
         if delay:
-            await sleep(cast(float, delay))
+            await sleep(cast("float", delay))
 
         # Process timeout
         try:
             if timeout:
-                async with async_timeout(cast(float, timeout)):
+                async with async_timeout(cast("float", timeout)):
                     return await tw._fn(*args, **kwargs)
 
             return await tw._fn(*args, **kwargs)

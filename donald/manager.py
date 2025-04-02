@@ -2,19 +2,21 @@ from __future__ import annotations
 
 from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
-from typing import Any, Callable, ClassVar, Unpack, cast
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Unpack, cast
 
 from .backend import BACKENDS, BaseBackend
-from .types import (
-    TInterval,
-    TManagerParams,
-    TTaskParamsPartial,
-    TVWorkerOnErrFn,
-    TVWorkerOnFn,
-    TWorkerParams,
-)
 from .utils import ManagerNotReadyError, current_manager, logger
 from .worker import Worker
+
+if TYPE_CHECKING:
+    from .types import (
+        TInterval,
+        TManagerParams,
+        TTaskParamsPartial,
+        TVWorkerOnErrFn,
+        TVWorkerOnFn,
+        TWorkerParams,
+    )
 
 
 class Donald:
@@ -25,7 +27,7 @@ class Donald:
         "log_config": None,
         "backend": "memory",
         "backend_params": {},
-        "worker_params": cast(TWorkerParams, {}),
+        "worker_params": cast("TWorkerParams", {}),
     }
 
     _backend: BaseBackend
@@ -45,7 +47,7 @@ class Donald:
         """Setup the manager."""
         assert not self.is_started, "Manager is already started"
 
-        self._params = cast(TManagerParams, dict(self._params, **params))
+        self._params = cast("TManagerParams", dict(self._params, **params))
         self._backend = BACKENDS[self._params["backend"]](
             self._params["backend_params"],
         )
@@ -70,7 +72,7 @@ class Donald:
     def create_worker(self: Donald, **params):
         """Create a worker."""
         worker_params = cast(
-            TWorkerParams,
+            "TWorkerParams",
             dict(self._params["worker_params"], **params),
         )
         return Worker(self._backend, worker_params)
