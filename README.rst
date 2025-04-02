@@ -1,4 +1,4 @@
-Donald 0.33.0
+Donald 1.0.0
 #############
 
 .. _description:
