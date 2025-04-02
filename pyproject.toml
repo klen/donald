@@ -35,7 +35,7 @@ donald = "donald.__main__:main"
 
 [project.optional-dependencies]
 tests = ["redis", "types-redis", "pytest", "pytest-aio", "pytest-mypy", "pytest-redislite", "ruff"]
-dev = ["pre-commit", "refurb", "bump2version"]
+dev = ["pre-commit", "bump2version"]
 redis = ["redis"]
 
 [tool.setuptools]

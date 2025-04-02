@@ -3,12 +3,12 @@ Donald 0.33.0
 
 .. _description:
 
-Donald -- A fast and simple tasks manager for Asyncio.
+**Donald** — A fast and minimal task manager for **Asyncio**.
 
 
-Donald supports synchronous and asynchronous paradigms. The package is running
-coroutines and functions in multi loops. Donald could run periodic tasks and
-listen AMQP queues.
+Donald supports both synchronous and asynchronous functions. It can run
+coroutines across multiple event loops, schedule periodic tasks, and consume
+jobs from AMQP queues.
 
 .. _badges:
 
@@ -28,34 +28,54 @@ listen AMQP queues.
 
 .. contents::
 
+.. _features:
+
+Key Features
+============
+
+- Simple and lightweight API
+- Works with asyncio (Python 3.9+)
+- Supports multiple backends: `memory`, `redis`, `amqp`
+- Periodic task scheduling (cron or intervals)
+- Built-in retry mechanism and failbacks
+- Can run multiple workers and schedulers in separate processes
+
 .. _requirements:
 
 Requirements
 =============
 
-- python 3.9+
+- Python 3.9 or newer
 
 .. _installation:
 
 Installation
 =============
 
-**Donald** should be installed using pip: ::
+Install via pip:
+
+::
 
     pip install donald
 
-With redis support: ::
+With Redis backend support:
+
+::
 
     pip install donald[redis]
+
 
 .. _usage:
 
 Quick Start
 ===========
 
-Init the tasks manager:
+Initialize a task manager:
 
 .. code:: python
+
+    import logging
+    from donald import Donald
 
     # Init Donald
     manager = Donald(
@@ -97,8 +117,8 @@ Init the tasks manager:
     )
 
     # Wrap a function to task
-    @manager.task
-    async def myfunc(*args, **kwargs):
+    @manager.task()
+    async def mytask(*args, **kwargs):
         # Do some job here
 
     # Start the manager somewhere (on app start for example)
@@ -112,7 +132,7 @@ Init the tasks manager:
     # ...
 
     # Submit the task to workers
-    myfunc.submit(*args, **kwargs)
+    mytask.submit(*args, **kwargs)
 
     # ...
 
@@ -120,68 +140,104 @@ Init the tasks manager:
     await worker.stop()
     await manager.stop()
 
+.. _task-tuning:
 
-Schedule tasks
-===============
+Task Tuning
+===========
 
 .. code:: python
 
-  @tasks.schedule('*/5 * * * *')  # Supports cron expressions, number of seconds, timedelta
-  @tasks.task
-  async def myfunc(*args, **kwargs):
-      """Run every 5 minutes"""
-      # Do some job here
+  # Set delay and timeout
+  @tasks.task(delay=5, timeout=60)
+  async def delayed_task(*args, **kwargs):
+      ...
 
+  # Automatic retries on error
+  @tasks.task(retries_max=3, retries_backoff_factor=2, retries_backoff_max=60)
+  async def retrying_task(*args, **kwargs):
+      ...
 
-  # you may run a scheduler in the same process
-  # not recommended for production
+  # Define a failback function
+  @retrying_task.failback()
+  async def on_fail(*args, **kwargs):
+      ...
+
+  # Manual retry control
+  @tasks.task(bind=True)
+  async def conditional_retry(self):
+      try:
+          ...
+      except Exception:
+          if self.retries < 3:
+              self.retry()
+          else:
+              raise
+
+.. _scheduler:
+
+Scheduling Tasks
+================
+
+.. code:: python
+
+  @tasks.task()
+  async def mytask(*args, **kwargs):
+      ...
+
+  # Run every 5 minutes
+  mytask.schedule('*/5 * * * *')
+
+  # Start the scheduler (not recommended in production)
   manager.scheduler.start()
 
-  # ...
-
-  # Stop the scheduler before stop the tasks manager
+  # Stop it when needed
   manager.scheduler.stop()
 
+.. _production:
 
-Run in production
-=================
+Running in Production
+=====================
 
-Create a tasks manager somewhere in your app `tasks.py`:
+Create a task manager in `tasks.py`:
 
 .. code:: python
+
+  from donald import Donald
 
   manager = Donald(backend='amqp')
 
-  # Setup your tasks and schedules.
-  # See the Quick Start section for details.
+  # Define your tasks and schedules
 
-Run a worker in a separate process:
+Start a worker in a separate process:
 
 .. code:: bash
 
    $ donald -M tasks.manager worker
 
-Run a scheduler (if you need) in a separate process:
+Start the scheduler (optional):
 
 .. code:: bash
 
    $ donald -M tasks.manager scheduler
+
 
 .. _bugtracker:
 
 Bug tracker
 ===========
 
-If you have any suggestions, bug reports or
-annoyances please report them to the issue tracker
-at https://github.com/klen/donald/issues
+Found a bug or have a feature request?
+Please open an issue:
+👉 https://github.com/klen/donald/issues
 
 .. _contributing:
 
 Contributing
 ============
 
-Development of starter happens at github: https://github.com/klen/donald
+Contributions are welcome!
+Development happens on GitHub:
+🔗 https://github.com/klen/donald
 
 .. _license:
 

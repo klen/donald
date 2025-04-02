@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
-from typing import Callable, ClassVar, cast, overload
+from typing import Any, Callable, ClassVar, Unpack, cast
 
 from .backend import BACKENDS, BaseBackend
 from .types import (
+    TInterval,
     TManagerParams,
-    TTaskParams,
+    TTaskParamsPartial,
     TVWorkerOnErrFn,
     TVWorkerOnFn,
     TWorkerParams,
@@ -85,34 +86,32 @@ class Donald:
         """Schedule a task to the backend."""
         return self.scheduler.schedule(interval)
 
-    @overload
-    def task(self, fn: Callable) -> TaskWrapper:
-        ...
-
-    @overload
-    def task(self, **params) -> Callable[[Callable], TaskWrapper]:
-        ...
-
     def task(
         self,
-        fn: Callable | None = None,
-        **params
-    ) -> Callable[[Callable], TaskWrapper] | TaskWrapper:
+        fn: Any = ...,
+        /,
+        **params: Unpack[TTaskParamsPartial],
+    ) -> Callable[[Callable], TaskWrapper]:
         """Decorator to wrap a function into a Task object."""
 
+        if fn is not ...:
+            raise ValueError("Task decorator must be used with parentheses (e.g. @task() or @task(**params))") from None  # noqa: E501, TRY003
+
         def wrapper(fn: Callable) -> TaskWrapper:
-            return TaskWrapper(self, fn, cast(TTaskParams, params))
+            return TaskWrapper(self, fn, **params)
 
-        if fn is None:
-            return wrapper
+        return wrapper
 
-        return wrapper(fn)
-
-    def submit(self, run: TaskRun) -> Task:
+    def submit(self, run: TaskRun | Callable, *args, **kwargs) -> Task:
         """Submit a task to the backend."""
         if not self.is_started:
             raise ManagerNotReadyError
 
+        if not isinstance(run, TaskRun):
+            wrapper = TaskWrapper(self, run)
+            run = wrapper.get_run(*args, kwargs=kwargs)
+
+        assert isinstance(run, TaskRun)
         task = create_task(self._backend.submit(run.data))
         self.submissions.add(task)
         task.add_done_callback(self.submissions.discard)
@@ -134,5 +133,5 @@ class Donald:
         return fn
 
 
-from .scheduler import Scheduler, TInterval  # noqa: E402
+from .scheduler import Scheduler  # noqa: E402
 from .tasks import TaskRun, TaskWrapper  # noqa: E402

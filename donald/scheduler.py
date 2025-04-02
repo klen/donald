@@ -4,7 +4,7 @@ from asyncio import sleep
 from asyncio.locks import Event
 from asyncio.tasks import create_task, gather
 from datetime import timedelta
-from typing import Callable, Union
+from typing import TYPE_CHECKING, Callable
 
 from crontab import CronTab
 
@@ -12,7 +12,8 @@ from donald.tasks import TaskWrapper
 
 from .utils import SchedulerNotReadyError, logger
 
-TInterval = Union[timedelta, int, float, str, CronTab]
+if TYPE_CHECKING:
+    from donald.types import TInterval
 
 
 class Scheduler:
@@ -69,7 +70,7 @@ class Scheduler:
             async def scheduler():
                 while True:
                     to_sleep = max(timer(), 1e-2)
-                    logger.info("Next '%s' in %0.2f s", task.import_path(), to_sleep)
+                    logger.info("Next '%s' in %0.2f s", task.import_path(task._fn), to_sleep)
                     await sleep(to_sleep)
                     task.submit()
 

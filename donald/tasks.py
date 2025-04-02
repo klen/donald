@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, cast
+from typing import TYPE_CHECKING, Any, Callable, Unpack, cast
 
-from .types import TRunArgs, TTaskParams
+from .types import TInterval, TRunArgs, TTaskParams, TTaskParamsPartial
 from .utils import current_manager, to_coroutinefn
 
 if TYPE_CHECKING:
@@ -12,15 +12,25 @@ if TYPE_CHECKING:
 class TaskWrapper:
     """Wrap a given function into a Task object."""
 
-    __slots__ = ("_manager", "_fn", "_params", "_timer")
+    __slots__ = ("_manager", "_fn", "_params", "_failback")
 
-    def __init__(self, manager: Donald, fn: Callable, params: TTaskParams):
+    def __init__(self, manager: Donald, fn: Callable, /,  # noqa: PLR0913
+                 bind: bool = False, delay: float = 0, timeout: float = 0,  # noqa: FBT001, FBT002
+                 retries_max: int = 0, retries_backoff_factor: float = 0,
+                 retries_backoff_max: float = 600):
         assert "<locals>" not in fn.__qualname__, "Can't use local functions as tasks"
 
         self._manager = manager
         self._fn = to_coroutinefn(fn)
-        self._params: TTaskParams = params
-        self._timer = None
+        self._failback: Callable | None = None
+        self._params: TTaskParams = {
+            "bind": bind,
+            "delay": delay,
+            "timeout": timeout,
+            "retries_max": retries_max,
+            "retries_backoff_max": retries_backoff_max,
+            "retries_backoff_factor": retries_backoff_factor,
+        }
 
     def __repr__(self):
         return f"<TaskWrapper {self._fn.__qualname__}>"
@@ -28,16 +38,28 @@ class TaskWrapper:
     def __call__(self, *args, **kwargs):
         return self._fn(*args, **kwargs)
 
-    def import_path(self) -> str:
-        return f"{self._fn.__module__}.{self._fn.__qualname__}"
+    @staticmethod
+    def import_path(fn: Callable) -> str:
+        return f"{fn.__module__}.{fn.__qualname__}"
+
+    def get_run(self, *args, kwargs: dict, **params: Unpack[TTaskParamsPartial]) -> TaskRun:
+        task_params = cast(TTaskParams, dict(self._params, **params))
+        return TaskRun(self.import_path(self._fn), args, kwargs or {}, task_params)
 
     def submit(self, *args, **kwargs):
         return self.apply_submit(*args, kwargs=kwargs)
 
     def apply_submit(self, *args, kwargs: dict | None = None, **params):
-        task_params = cast(TTaskParams, dict(self._params, **params))
-        res = TaskRun(self.import_path(), args, kwargs or {}, task_params)
-        return self._manager.submit(res)
+        run = self.get_run(*args, kwargs=kwargs or {}, **params)
+        return self._manager.submit(run)
+
+    def schedule(self, interval: TInterval):
+        return self._manager.schedule(interval)(self)
+
+    def failback(self):
+        def wrapper(fn: Callable[[Exception], Any]):
+            self._failback = to_coroutinefn(fn)
+        return wrapper
 
 
 class TaskRun:

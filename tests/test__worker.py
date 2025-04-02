@@ -1,6 +1,6 @@
 from donald import logger
 
-from .tasks import async_task, manager
+from .tasks import async_task, fail, manager
 
 
 async def test_on_start(sleep, checklog):
@@ -31,9 +31,9 @@ async def test_on_stop(checklog, sleep):
         w.start()
 
         await async_task.submit()
-        await sleep(1e-1)
-        assert checklog("Run async_task 42")
 
+        await w.join()
+        assert checklog("Run async_task 42")
         await w.stop()
 
     assert checklog("Run on_stop")
@@ -49,8 +49,22 @@ async def test_on_error(checklog, sleep):
         w.start()
 
         await async_task.submit(error=True)
-        await sleep(1e-1)
 
+        await w.join()
         await w.stop()
 
-    checklog("Run on_error: Task failed")
+    assert checklog("Run on_error: Task failed")
+
+
+async def test_retry(checklog, sleep, caplog):
+
+    async with manager:
+        w = manager.create_worker()
+        w.start()
+
+        await fail.submit()
+        await w.join()
+        await w.stop()
+
+    assert checklog("Run fail", fail._params["retries_max"] + 1)
+    assert checklog("Run failback")

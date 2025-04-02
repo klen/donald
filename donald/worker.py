@@ -7,20 +7,20 @@ from asyncio.locks import Event, Semaphore
 from asyncio.tasks import Task, create_task, gather, sleep
 from contextlib import suppress
 from importlib import metadata
-from typing import TYPE_CHECKING, AsyncIterator, Callable, ClassVar, Iterable, cast
+from random import random
+from typing import TYPE_CHECKING, AsyncIterator, ClassVar, cast
 
 try:
     from asyncio import timeout as async_timeout  # type: ignore[attr-defined]
 except ImportError:  # python 39, 310
     from async_timeout import timeout as async_timeout  # type: ignore[assignment, no-redef]
 
-from donald.tasks import TaskWrapper
+from donald.tasks import TaskRun, TaskWrapper
 
 from .types import TRunArgs, TTaskParams, TWorkerParams
 from .utils import import_obj, logger
 
 if TYPE_CHECKING:
-    from numbers import Number
 
     from .backend import BaseBackend
 
@@ -115,37 +115,65 @@ class Worker:
                 continue
 
             task_params = cast(TTaskParams, dict(self._task_params, **params))
-            name = tw.import_path()
-            task = create_task(
-                self.run_task(tw, args, kwargs, **task_params),
-                name=name,
-            )
+            task = create_task(self.run_task(tw, args, kwargs, **task_params), name=path)
             tasks.add(task)
             task.add_done_callback(finish_task)
-            logger.info("Run: '%s' (%d)", name, id(task))
+            logger.info("Run: '%s' (%d)", path, id(task))
             if sem:
                 await sem.acquire()
 
-    async def run_task(
+    async def run_task(  # noqa: PLR0913
         self,
-        corofunc: Callable,
-        args: Iterable,
+        tw: TaskWrapper,
+        args: tuple,
         kwargs: dict,
         *,
-        timeout: Number | None = None,
-        delay: Number | None = None,
-        **_,
+        retries: int = 0,
+        bind: bool = False,
+        delay: float = 0,
+        timeout: float = 0,
+        retries_max: int = 0,
+        retries_backoff_max: float = 600,
+        retries_backoff_factor: float = .5,
     ):
         # Process delay
         if delay:
             await sleep(cast(float, delay))
 
         # Process timeout
-        if timeout:
-            async with async_timeout(cast(float, timeout)):
-                return await corofunc(*args, **kwargs)
+        try:
+            if timeout:
+                async with async_timeout(cast(float, timeout)):
+                    return await tw._fn(*args, **kwargs)
 
-        return await corofunc(*args, **kwargs)
+            return await tw._fn(*args, **kwargs)
+        except Exception as exc:
+            if bind:
+                task_run: TaskRun = args[0]
+                task_run.retries += 1
+                retries = task_run.retries
+            else:
+                retries += 1
+
+            if retries <= retries_max:
+                backoff = min(retries_backoff_max, retries_backoff_factor * (2 ** (retries - 1) + random()))  # noqa: S311, E501
+                logger.info("Retry: '%s' (%d) in %.2fs", tw._fn.__qualname__, retries, backoff)
+                return await self.run_task(
+                    tw,
+                    args,
+                    kwargs,
+                    retries=retries,
+                    bind=bind,
+                    delay=delay + backoff,
+                    timeout=timeout,
+                    retries_max=retries_max,
+                    retries_backoff_factor=retries_backoff_factor,
+                )
+
+            if tw._failback:
+                return await tw._failback(exc)
+
+            raise
 
     def finish_task(self, task: Task):
         self._tasks.discard(task)
@@ -153,12 +181,7 @@ class Worker:
         with suppress(CancelledError):
             exc = task.exception()
             if exc:
-                logger.exception(
-                    "Fail: '%s' (%d)",
-                    task.get_name(),
-                    id(task),
-                    exc_info=exc,
-                )
+                logger.exception("Fail: '%s' (%d)", task.get_name(), id(task), exc_info=exc)
                 if self.on_error:
                     coro = self.on_error(exc)
                     if iscoroutine(coro):

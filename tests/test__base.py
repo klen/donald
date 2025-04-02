@@ -17,10 +17,10 @@ def foo():
 async def test_wrap_task():
     donald = Donald()
 
-    tw = donald.task(foo)
+    tw = donald.task()(foo)
 
     assert tw
-    assert tw.import_path() == "tests.test__base.foo"
+    assert tw.import_path(tw._fn) == "tests.test__base.foo"
     assert isinstance(tw, TaskWrapper)
     assert tw._fn
     assert await tw() == 42
@@ -40,4 +40,4 @@ async def test_dont_wrap_local_tasks():
         return 1
 
     with pytest.raises(AssertionError):
-        donald.task(foo)
+        donald.task()(foo)
