@@ -6,7 +6,6 @@ from typing import (
     Callable,
     Coroutine,
     Literal,
-    NotRequired,
     Optional,
     TypedDict,
     TypeVar,
@@ -14,6 +13,7 @@ from typing import (
 )
 
 from crontab import CronTab
+from typing_extensions import NotRequired
 
 TWorkerOnFn = Callable[[], Coroutine]
 TVWorkerOnFn = TypeVar("TVWorkerOnFn", bound=TWorkerOnFn)

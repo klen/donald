@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Unpack, cast
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, cast
+
+from typing_extensions import Unpack
 
 from .backend import BACKENDS, BaseBackend
 from .utils import ManagerNotReadyError, current_manager, logger

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Unpack, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
+
+from typing_extensions import Unpack
 
 from .utils import current_manager, to_coroutinefn
 
