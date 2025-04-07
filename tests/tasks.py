@@ -47,6 +47,6 @@ async def fail():
     raise Exception("Task failed")
 
 @fail.failback()
-async def failback(exc):
+async def failback(exc, *args, **kwargs):
     logger.error("Run failback")
     return exc

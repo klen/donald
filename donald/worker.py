@@ -171,7 +171,7 @@ class Worker:
                 )
 
             if tw._failback:
-                return await tw._failback(exc)
+                return await tw._failback(exc, *args, **kwargs)
 
             raise
 
