@@ -1,6 +1,6 @@
 [project]
 name = "donald"
-version = "1.1.1"
+version = "1.1.2"
 description = "Task manager for asyncio"
 readme = "README.rst"
 requires-python = ">=3.9"
