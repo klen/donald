@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, Any, Callable, Concatenate, cast
 
 from typing_extensions import Unpack
 
@@ -59,7 +59,7 @@ class TaskWrapper:
         return self._manager.schedule(interval)(self)
 
     def failback(self):
-        def wrapper(fn: Callable[[Exception], Any]):
+        def wrapper(fn: Callable[Concatenate[Exception, ...], Any]):
             self._failback = to_coroutinefn(fn)
         return wrapper
 
