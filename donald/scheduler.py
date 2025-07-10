@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 class Scheduler:
     """Manage periodic and cron-based task schedules."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._schedule: list[Callable[[], Coroutine]] = []
         self._tasks: list[asyncio.Task] = []
         self._finished: Optional[Event] = None

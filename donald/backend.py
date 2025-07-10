@@ -110,8 +110,8 @@ class MemoryBackend(BaseBackend):
     async def _submit_and_wait(self, data: TRunArgs, timeout=10):
         correlation_id = str(uuid4())
         task_name, args, kwargs, params = data
-        params: TTaskParams = {**params, "correlation_id": correlation_id, "reply_to": "results"}
-        data = (task_name, args, kwargs, params)
+        _params: TTaskParams = {**params, "correlation_id": correlation_id, "reply_to": "results"}
+        data = (task_name, args, kwargs, _params)
         await self._submit(dumps(data))
 
         try:
@@ -178,10 +178,10 @@ class RedisBackend(BaseBackend):
         correlation_id = str(uuid4())
         replay_to = f"{self.params['channel']}:rpc:{correlation_id}"
         task_name, args, kwargs, params = data
-        params: TTaskParams = {
+        _params: TTaskParams = {
             **params, "correlation_id": correlation_id, "reply_to": replay_to
         }
-        data = (task_name, args, kwargs, params)
+        data = (task_name, args, kwargs, _params)
 
         await self._submit(dumps(data))
 
@@ -248,22 +248,22 @@ class AMQPBackend(BaseBackend):
             routing_key=self.params["queue"],
         )
 
-    async def subscribe(self):
+    async def subscribe(self) -> AsyncIterator[TRunArgs]:
         queue = self.__queue__
 
-        async def iter_tasks():
+        async def iter_tasks() -> AsyncIterator[TRunArgs]:
             async with queue.iterator() as queue_iter:
                 async for message in queue_iter:
                     async with message.process():
                         data: TRunArgs = loads(message.body)
                         if message.reply_to and message.correlation_id:
                             task_name, args, kwargs, params = data
-                            params: TTaskParams = {
+                            _params: TTaskParams = {
                                 **params,
                                 "reply_to": message.reply_to,
                                 "correlation_id": message.correlation_id,
                             }
-                            data = (task_name, args, kwargs, params)
+                            data = (task_name, args, kwargs, _params)
 
                         yield data
 
