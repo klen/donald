@@ -56,7 +56,7 @@ class Worker:
         self.on_error = self._params.get("on_error")
 
         max_tasks = self._params["max_tasks"]
-        self._sem = (max_tasks and Semaphore(max_tasks - 1)) or None
+        self._sem = (max_tasks and Semaphore(max_tasks)) or None
 
         self._tasks: set[Task] = set()
         self._finished = Event()
@@ -71,7 +71,7 @@ class Worker:
         logger.info(msg)
         self._finished.clear()
         self._runner = create_task(self.run_worker(), name="Worker Run Task")
-        self._runner.add_done_callback(self.finish_task)
+        self._runner.add_done_callback(self.finish_runner)
 
     async def stop(self):
         """Stop the worker."""
@@ -177,6 +177,8 @@ class Worker:
 
     def finish_task(self, task: Task):
         self._tasks.discard(task)
+        if task.cancelled():
+            logger.info("Task cancelled: '%s'", task.get_name())
 
         with suppress(CancelledError):
             exc = task.exception()
@@ -191,6 +193,15 @@ class Worker:
             self._sem.release()
 
         logger.info("Finished: '%s' (%d)", task.get_name(), id(task))
+
+    def finish_runner(self, task: Task):
+        with suppress(CancelledError):
+            exc = task.exception()
+            if exc:
+                logger.exception("Worker runner failed", exc_info=exc)
+            else:
+                logger.info("Worker runner finished successfully")
+        self._finished.set()
 
     async def join(self):
         """Wait for all tasks to complete."""
