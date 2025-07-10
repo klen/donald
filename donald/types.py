@@ -35,6 +35,8 @@ class TTaskParams(TypedDict):
     retries_max: int
     retries_backoff_factor: float
     retries_backoff_max: float
+    reply_to: NotRequired[str]
+    correlation_id: NotRequired[str]
 
 class TTaskParamsPartial(TypedDict):
     bind: NotRequired[bool]

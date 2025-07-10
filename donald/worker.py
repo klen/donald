@@ -111,8 +111,7 @@ class Worker:
                 continue
 
             if not isinstance(tw, TaskWrapper):
-                logger.error("Invalid task: %s", path)
-                continue
+                tw = TaskWrapper(None, tw)
 
             task_params = cast("TTaskParams", dict(self._task_params, **params))
             task = create_task(self.run_task(tw, args, kwargs, **task_params), name=path)
@@ -135,7 +134,10 @@ class Worker:
         retries_max: int = 0,
         retries_backoff_max: float = 600,
         retries_backoff_factor: float = .5,
+        reply_to: str | None = None,
+        correlation_id: str | None = None,
     ):
+        """Run a task with the given parameters."""
         # Process delay
         if delay:
             await sleep(cast("float", delay))
@@ -144,9 +146,15 @@ class Worker:
         try:
             if timeout:
                 async with async_timeout(cast("float", timeout)):
-                    return await tw._fn(*args, **kwargs)
+                    result = await tw._fn(*args, **kwargs)
+            else:
+                result = await tw._fn(*args, **kwargs)
 
-            return await tw._fn(*args, **kwargs)
+            if reply_to and correlation_id:
+                await self._backend.callback(result, reply_to, correlation_id)
+
+            return result  # noqa: TRY300
+
         except Exception as exc:
             if bind:
                 task_run: TaskRun = args[0]
@@ -168,6 +176,8 @@ class Worker:
                     timeout=timeout,
                     retries_max=retries_max,
                     retries_backoff_factor=retries_backoff_factor,
+                    reply_to=reply_to,
+                    correlation_id=correlation_id,
                 )
 
             if tw._failback:
@@ -176,6 +186,7 @@ class Worker:
             raise
 
     def finish_task(self, task: Task):
+        """Callback to handle the completion of a task."""
         self._tasks.discard(task)
         if task.cancelled():
             logger.info("Task cancelled: '%s'", task.get_name())
@@ -194,9 +205,10 @@ class Worker:
 
         logger.info("Finished: '%s' (%d)", task.get_name(), id(task))
 
-    def finish_runner(self, task: Task):
+    def finish_runner(self, runner: Task):
+        """Callback to handle the completion of the worker runner."""
         with suppress(CancelledError):
-            exc = task.exception()
+            exc = runner.exception()
             if exc:
                 logger.exception("Worker runner failed", exc_info=exc)
             else:

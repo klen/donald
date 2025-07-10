@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import asyncio
-import random
-from contextlib import suppress
 from pickle import dumps, loads
 from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Mapping
-from urllib.parse import urlparse
 from uuid import uuid4
+
+from aio_pika import DeliveryMode, Exchange, Message, connect_robust
 
 from .utils import BackendNotReadyError, logger
 
 if TYPE_CHECKING:
-    from aioamqp import Channel
+    from aio_pika import Channel
     from redis.asyncio import Redis
+
+    from donald.types import TTaskParams
 
     from .types import TBackendType, TRunArgs
 
@@ -44,6 +45,15 @@ class BaseBackend:
         _data = dumps(data)
         return self._submit(_data)
 
+    async def submit_and_wait(self, data: TRunArgs, timeout=10):
+        if not self.is_connected:
+            raise BackendNotReadyError
+
+        return await self._submit_and_wait(data, timeout=timeout)
+
+    async def callback(self, result, reply_to: str, correlation_id: str):
+        raise NotImplementedError
+
     async def subscribe(self) -> AsyncIterator[TRunArgs]:
         raise NotImplementedError
 
@@ -54,6 +64,9 @@ class BaseBackend:
         pass
 
     async def _submit(self, data):
+        raise NotImplementedError
+
+    async def _submit_and_wait(self, data, timeout=10):
         raise NotImplementedError
 
 
@@ -69,6 +82,7 @@ class MemoryBackend(BaseBackend):
 
     async def _connect(self):
         self.__backend__ = asyncio.Queue()
+        self.__results__ = asyncio.Queue()
 
     async def _submit(self, data):
         self.rx.put_nowait(data)
@@ -88,6 +102,30 @@ class MemoryBackend(BaseBackend):
 
         return iter_tasks()
 
+    async def callback(self, result, reply_to: str, correlation_id: str):
+        return self.__results__.put_nowait(
+            dumps({"result": result, "correlation_id": correlation_id})
+        )
+
+    async def _submit_and_wait(self, data: TRunArgs, timeout=10):
+        correlation_id = str(uuid4())
+        task_name, args, kwargs, params = data
+        params: TTaskParams = {**params, "correlation_id": correlation_id, "reply_to": "results"}
+        data = (task_name, args, kwargs, params)
+        await self._submit(dumps(data))
+
+        try:
+            async with asyncio.timeout(timeout):
+                while True:
+                    msg = await self.__results__.get()
+                    res = loads(msg)
+                    if res.get("correlation_id") == correlation_id:
+                        return res.get("result")
+                    else:
+                        # Put back unmatched results for other waits
+                        self.__results__.put_nowait(msg)
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError("Task result timeout") from exc
 
 class RedisBackend(BaseBackend):
     backend_type: TBackendType = "redis"
@@ -129,6 +167,44 @@ class RedisBackend(BaseBackend):
 
         return iter_tasks()
 
+    async def callback(self, result, reply_to: str, correlation_id: str):
+        payload = dumps({
+            "result": result,
+            "correlation_id": correlation_id,
+        })
+        await self.redis.publish(reply_to, payload)
+
+    async def _submit_and_wait(self, data: TRunArgs, timeout=10):
+        correlation_id = str(uuid4())
+        replay_to = f"{self.params['channel']}:rpc:{correlation_id}"
+        task_name, args, kwargs, params = data
+        params: TTaskParams = {
+            **params, "correlation_id": correlation_id, "reply_to": replay_to
+        }
+        data = (task_name, args, kwargs, params)
+
+        await self._submit(dumps(data))
+
+        pubsub = self.redis.pubsub()
+        await pubsub.subscribe(replay_to)
+
+        try:
+            async with asyncio.timeout(timeout):
+                while True:
+                    msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
+                    if msg is None:
+                        continue
+
+                    res = loads(msg["data"])
+                    if res.get("correlation_id") == correlation_id:
+                        return res.get("result")
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError("Task result timeout") from exc
+
+        finally:
+            await pubsub.unsubscribe(replay_to)
+            await pubsub.close()
+
 
 class AMQPBackend(BaseBackend):
     backend_type: TBackendType = "amqp"
@@ -140,112 +216,103 @@ class AMQPBackend(BaseBackend):
 
     def __init__(self, params: Mapping):
         super().__init__(params)
-        self.__protocol__ = None
-        self.__channel__ = None
-
-    @property
-    def channel(self) -> "Channel":
-        if self.__backend__ is None:
-            raise BackendNotReadyError
-
-        return self.__channel__
+        self.__channel__: Channel | None = None
+        self.__exchange__: Exchange | None = None
 
     async def _connect(self):
-        from aioamqp import connect
+        self.__backend__ = await connect_robust(self.params["url"])
+        self.__channel__ = channel = await self.__backend__.channel()
 
-        url = urlparse(self.params["url"])
-        host, port, vhost, user, password = (
-            url.hostname,
-            url.port,
-            url.path,
-            url.username,
-            url.password,
+        await channel.set_qos(prefetch_count=1)
+        self.__queue__ = await channel.declare_queue(
+            self.params["queue"], durable=True
         )
 
-        try:
-            self.__backend__, self.__protocol__ = await connect(
-                host=host,
-                port=port,
-                virtualhost=vhost,
-                login=user,
-                password=password,
-                on_error=self.on_error,
-                **self.params,
-            )
-        except OSError as exc:
-            logger.exception("Failed to connect to AMQP")
-            return asyncio.create_task(self.on_error(exc))
-
-        self.__channel__ = await self.__protocol__.channel()
-        await self.__channel__.queue_declare(
-            queue_name=self.params["queue"],
-            durable=True,
-        )
-        await self.__channel__.basic_qos(
-            prefetch_count=1,
-            prefetch_size=0,
-            connection_global=False,
-        )
+        exchange_name = self.params["exchange"]
+        if exchange_name:
+            self.exchange = await channel.get_exchange(exchange_name)
+        else:
+            self.exchange = channel.default_exchange
 
     async def _disconnect(self):
-        proto = self.__protocol__
-        if proto is None:
-            raise BackendNotReadyError
+        await self.__backend__.close()
 
-        await proto.close(no_wait=True)
-        self.__backend__.close()
-
-    reconnecting = None
-
-    async def on_error(self, _):
-        if not self.is_connected:
-            return
-
-        self.is_connected = False
-        if self.reconnecting is None:
-            self.reconnecting = asyncio.Condition()
-
-        if self.reconnecting.locked():
-            return
-
-        async with self.reconnecting:
-            logger.exception("AMQP Connection Error, reconnecting in 5 seconds")
-            await asyncio.sleep(5 + random.random())
-            with suppress(Exception):
-                await self.connect()
-
-    async def _submit(self, data):
-        await self.channel.basic_publish(
-            payload=data,
-            exchange_name=self.params["exchange"],
+    async def _submit(self, data, **params):
+        return await self.exchange.publish(
+            Message(
+                body=data,
+                message_id=str(uuid4()),
+                delivery_mode=DeliveryMode.PERSISTENT,
+                **params,
+            ),
             routing_key=self.params["queue"],
-            properties={"delivery_mode": 2, "message_id": f"{uuid4()}"},
         )
-        return True
 
     async def subscribe(self):
-        rx = asyncio.Queue()
-
-        async def consumer(channel, body, envelope, _):
-            rx.put_nowait(body)
-            await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
-
-        channel = self.__channel__
-        if channel is None:
-            raise BackendNotReadyError
-
-        await channel.basic_consume(consumer, self.params["queue"])
+        queue = self.__queue__
 
         async def iter_tasks():
-            while self.is_connected:
-                msg = await rx.get()
-                if msg is None:
-                    continue
+            async with queue.iterator() as queue_iter:
+                async for message in queue_iter:
+                    async with message.process():
+                        data: TRunArgs = loads(message.body)
+                        if message.reply_to and message.correlation_id:
+                            task_name, args, kwargs, params = data
+                            params: TTaskParams = {
+                                **params,
+                                "reply_to": message.reply_to,
+                                "correlation_id": message.correlation_id,
+                            }
+                            data = (task_name, args, kwargs, params)
 
-                yield loads(msg)
+                        yield data
 
         return iter_tasks()
 
+    async def callback(self, result, reply_to: str, correlation_id: str):
+        await self.exchange.publish(
+            Message(
+                body=dumps(result),
+                correlation_id=correlation_id,
+                delivery_mode=DeliveryMode.PERSISTENT,
+            ),
+            routing_key=reply_to,
+        )
+
+    async def _submit_and_wait(self, data: TRunArgs, timeout=10):
+        channel = self.__channel__
+        assert channel is not None, "Channel is not set"
+        callback_queue = await channel.declare_queue(exclusive=True)
+
+        correlation_id = str(uuid4())
+
+        await self._submit(
+            dumps(data),
+            reply_to=callback_queue.name,
+            correlation_id=correlation_id,
+        )
+
+        async with callback_queue.iterator() as queue_iter:
+            try:
+                async with asyncio.timeout(timeout):
+                    async for message in queue_iter:
+                        async with message.process():
+                            if message.correlation_id == correlation_id:
+                                return loads(message.body)
+            except asyncio.TimeoutError as exc:
+                raise TimeoutError("Task result timeout") from exc
+
+    @property
+    def exchange(self) -> Exchange:
+        if self.__exchange__ is None:
+            raise BackendNotReadyError
+        return self.__exchange__
+
+    @exchange.setter
+    def exchange(self, value: Exchange):
+        if not isinstance(value, Exchange):
+            raise TypeError
+        self.__exchange__ = value
 
 BACKENDS: dict[TBackendType, type[BaseBackend]] = {
     "memory": MemoryBackend,
@@ -253,4 +320,4 @@ BACKENDS: dict[TBackendType, type[BaseBackend]] = {
     "amqp": AMQPBackend,
 }
 
-# ruff: noqa: S301, S311
+# ruff: noqa: S301, S311, TRY003, ARG002

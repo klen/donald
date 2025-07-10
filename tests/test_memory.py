@@ -4,7 +4,7 @@ from .tasks import async_task, bind_task, manager, nested_task
 
 
 @pytest.fixture(autouse=True)
-async def setup():
+async def donald():
     async with manager:
         w1 = manager.create_worker()
         w2 = manager.create_worker()
@@ -59,3 +59,15 @@ async def test_binded_task(sleep, checklog):
     bind_task.submit()
     await sleep()
     assert checklog("Run bind_task TaskRun")
+
+
+async def test_submit_and_wait(donald, sleep, checklog):
+    res = await async_task.submit_and_wait()
+    assert res == 42
+
+    assert checklog("Run async_task 42")
+
+
+async def test_health_check(donald, sleep, checklog):
+    res = await donald.healthcheck()
+    assert res is True

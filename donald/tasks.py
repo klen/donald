@@ -16,7 +16,7 @@ class TaskWrapper:
 
     __slots__ = ("_failback", "_fn", "_manager", "_params")
 
-    def __init__(self, manager: Donald, fn: Callable, /,  # noqa: PLR0913
+    def __init__(self, manager: Donald | None, fn: Callable, /,  # noqa: PLR0913
                  bind: bool = False, delay: float = 0, timeout: float = 0,  # noqa: FBT001, FBT002
                  retries_max: int = 0, retries_backoff_factor: float = 0,
                  retries_backoff_max: float = 600):
@@ -51,12 +51,25 @@ class TaskWrapper:
     def submit(self, *args, **kwargs):
         return self.apply_submit(*args, kwargs=kwargs)
 
+    async def submit_and_wait(self, *args, timeout=10, **kwargs):
+        manager = self._manager
+        if not manager:
+            raise RuntimeError("Manager is not set for this task")
+        run = self.get_run(*args, kwargs=kwargs or {})
+        return await manager.submit_and_wait(run, timeout=timeout)
+
     def apply_submit(self, *args, kwargs: dict | None = None, **params):
+        manager = self._manager
+        if not manager:
+            raise RuntimeError("Manager is not set for this task")
         run = self.get_run(*args, kwargs=kwargs or {}, **params)
-        return self._manager.submit(run)
+        return manager.submit(run)
 
     def schedule(self, interval: TInterval):
-        return self._manager.schedule(interval)(self)
+        manager = self._manager
+        if not manager:
+            raise RuntimeError("Manager is not set for this task")
+        return manager.schedule(interval)(self)
 
     def failback(self):
         def wrapper(fn: Callable[Concatenate[Exception, ...], Any]):
@@ -90,3 +103,5 @@ class TaskRun:
     def __repr__(self):
         path = self.data[0]
         return f"<TaskRun {path}>"
+
+# ruff: noqa: TRY003

@@ -3,8 +3,8 @@ import pytest
 from .tasks import async_task, manager
 
 
-@pytest.fixture()
-async def setup(redis_url):
+@pytest.fixture
+async def donald(redis_url):
     manager.setup(backend="redis", backend_params={"url": redis_url})
     assert manager._backend
     assert manager._backend.params
@@ -19,7 +19,7 @@ async def setup(redis_url):
         # await w2.stop()
 
 
-async def test_submit_task(setup, sleep, checklog):
+async def test_submit_task(donald, sleep, checklog):
     res = async_task.submit()
     assert res
     assert await res
@@ -35,3 +35,14 @@ async def test_submit_task(setup, sleep, checklog):
     assert checklog("Run async_task 0")
     assert checklog("Run async_task 1")
     assert checklog("Run async_task 2")
+
+async def test_submit_and_wait(donald, sleep, checklog):
+    res = await async_task.submit_and_wait()
+    assert res == 42
+
+    assert checklog("Run async_task 42")
+
+
+async def test_health_check(donald, sleep, checklog):
+    res = await donald.healthcheck()
+    assert res is True

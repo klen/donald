@@ -20,7 +20,7 @@ classifiers = [
   "Framework :: AsyncIO",
 ]
 dependencies = [
-  "aioamqp       >= 0.15.0",
+  "aio-pika      >= 9.5.5",
   "click         >= 6.7",
   "crontab       >= 0.22.0",
   "async-timeout;python_version<'3.11'",
