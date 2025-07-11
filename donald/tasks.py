@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, cast
 
+from typing_extensions import Concatenate, Unpack
+
 from .utils import current_manager, to_coroutinefn
 
 if TYPE_CHECKING:
-    from _compat import Concatenate, Unpack
-
     from .manager import Donald
     from .types import TInterval, TRunArgs, TTaskParams, TTaskParamsPartial
 
@@ -16,10 +16,18 @@ class TaskWrapper:
 
     __slots__ = ("_failback", "_fn", "_manager", "_params")
 
-    def __init__(self, manager: Donald | None, fn: Callable, /,  # noqa: PLR0913
-                 bind: bool = False, delay: float = 0, timeout: float = 0,  # noqa: FBT001, FBT002
-                 retries_max: int = 0, retries_backoff_factor: float = 0,
-                 retries_backoff_max: float = 600):
+    def __init__(  # noqa: PLR0913
+        self,
+        manager: Donald | None,
+        fn: Callable,
+        *,
+        bind: bool = False,
+        delay: float = 0,
+        timeout: float = 0,
+        retries_max: int = 0,
+        retries_backoff_factor: float = 0,
+        retries_backoff_max: float = 600,
+    ):
         assert "<locals>" not in fn.__qualname__, "Can't use local functions as tasks"
 
         self._manager = manager
@@ -65,15 +73,18 @@ class TaskWrapper:
         run = self.get_run(*args, kwargs=kwargs or {}, **params)
         return manager.submit(run)
 
-    def schedule(self, interval: TInterval):
+    def schedule(
+        self, interval: TInterval, *, run_immediately: bool = False, backoff: float = 0
+    ) -> Callable[[TaskWrapper], TaskWrapper]:
         manager = self._manager
         if not manager:
             raise RuntimeError("Manager is not set for this task")
-        return manager.schedule(interval)(self)
+        return manager.schedule(interval, run_immediately=run_immediately, backoff=backoff)(self)
 
     def failback(self):
         def wrapper(fn: Callable[Concatenate[Exception, ...], Any]):
             self._failback = to_coroutinefn(fn)
+
         return wrapper
 
 

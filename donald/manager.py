@@ -103,9 +103,11 @@ class Donald:
     async def __aexit__(self, exc_type, exc, tb):
         await self.stop()
 
-    def schedule(self, interval: TInterval):
+    def schedule(
+        self, interval: TInterval, *, run_immediately: bool = False, backoff: float = 0
+    ) -> Callable[[TaskWrapper], TaskWrapper]:
         """Schedule a task to the backend."""
-        return self.scheduler.schedule(interval)
+        return self.scheduler.schedule(interval, run_immediately=run_immediately, backoff=backoff)
 
     def task(
         self,
@@ -116,7 +118,9 @@ class Donald:
         """Decorator to wrap a function into a Task object."""
 
         if fn is not ...:
-            raise ValueError("Task decorator must be used with parentheses (e.g. @task() or @task(**params))") from None  # noqa: E501
+            raise ValueError(
+                "Task decorator must be used with parentheses (e.g. @task() or @task(**params))"
+            ) from None
 
         def wrapper(fn: Callable) -> TaskWrapper:
             return TaskWrapper(self, fn, **params)
@@ -181,6 +185,7 @@ class Donald:
 async def ping():
     """Ping the manager to check if it's running."""
     return "pong"
+
 
 from .scheduler import Scheduler  # noqa: E402
 from .tasks import TaskRun, TaskWrapper  # noqa: E402
