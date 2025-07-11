@@ -320,4 +320,4 @@ BACKENDS: dict[TBackendType, type[BaseBackend]] = {
     "amqp": AMQPBackend,
 }
 
-# ruff: noqa: S301, S311, TRY003, ARG002
+# ruff: noqa: S301, TRY003, ARG002, PLC0415
