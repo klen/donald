@@ -128,18 +128,24 @@ class MemoryBackend(BaseBackend):
         except TimeoutError as exc:
             raise TimeoutError("Task result timeout") from exc
 
+
 class RedisBackend(BaseBackend):
     backend_type: TBackendType = "redis"
     defaults: ClassVar = {
         "url": "redis://localhost:6379/0",
         "channel": "donald",
+        "consumer": "consumer-1",
     }
+
+    def __init__(self, params: Mapping):
+        self.is_connected = False
+        self.params = dict(self.defaults, **params)
+        self.__backend__: Any = None
 
     @property
     def redis(self) -> "Redis":
         if self.__backend__ is None:
             raise BackendNotReadyError
-
         return self.__backend__
 
     async def _connect(self):
@@ -147,64 +153,85 @@ class RedisBackend(BaseBackend):
 
         self.__backend__ = from_url(self.params["url"])
 
+        stream = f"{self.params['channel']}:stream"
+        group = f"{self.params['channel']}:group"
+
+        try:
+            await self.redis.xgroup_create(stream, group, id="$", mkstream=True)
+            logger.info("Created Redis stream group '%s'", group)
+        except Exception:  # noqa: BLE001
+            logger.info("Redis stream group '%s' already exists", group)
+
+        self.is_connected = True
+
     async def _disconnect(self):
         await self.redis.close()
+        self.is_connected = False
 
     async def _submit(self, data):
-        return await self.redis.publish(f"{self.params['channel']}:1", data)
+        stream = f"{self.params['channel']}:stream"
+        return await self.redis.xadd(stream, {"data": data})
 
-    async def subscribe(self):
-        pubsub = self.redis.pubsub(ignore_subscribe_messages=True)
-        await pubsub.subscribe(f"{self.params['channel']}:1")
+    async def subscribe(self) -> AsyncIterator[TRunArgs]:
+        stream = f"{self.params['channel']}:stream"
+        group = f"{self.params['channel']}:group"
+        consumer = self.params["consumer"]
 
         async def iter_tasks():
             while self.is_connected:
-                msg = await pubsub.get_message()
-                if msg is None:
-                    await sleep(1e-2)
+                msgs = await self.redis.xreadgroup(
+                    group, consumer, streams={stream: ">"}, count=1, block=1000
+                )
+                if not msgs:
                     continue
 
-                yield loads(msg["data"])
+                for _, entries in msgs:
+                    for msg_id, msg_data in entries:
+                        data = msg_data.get(b"data")
+                        if data:
+                            yield loads(data)
+                            await self.redis.xack(stream, group, msg_id)
 
         return iter_tasks()
 
     async def callback(self, result, reply_to: str, correlation_id: str):
-        payload = dumps({
-            "result": result,
-            "correlation_id": correlation_id,
-        })
-        await self.redis.publish(reply_to, payload)
+        payload = dumps(
+            {
+                "result": result,
+                "correlation_id": correlation_id,
+            }
+        )
+        # For Streams-based RPC, we can implement a separate stream for results
+        stream = f"{reply_to}:stream"
+        await self.redis.xadd(stream, {"data": payload})
 
     async def _submit_and_wait(self, data: TRunArgs, timeout=10):
         correlation_id = str(uuid4())
-        replay_to = f"{self.params['channel']}:rpc:{correlation_id}"
         task_name, args, kwargs, params = data
-        _params: TTaskParams = {
-            **params, "correlation_id": correlation_id, "reply_to": replay_to
-        }
-        data = (task_name, args, kwargs, _params)
+        params["correlation_id"] = correlation_id
+        reply_to = f"{self.params['channel']}:rpc:{correlation_id}"
+        params["reply_to"] = reply_to
+        data = (task_name, args, kwargs, params)
 
+        # Submit task
         await self._submit(dumps(data))
 
-        pubsub = self.redis.pubsub()
-        await pubsub.subscribe(replay_to)
-
+        # Wait for result on reply stream
+        stream = f"{reply_to}:stream"
         try:
             async with async_timeout(timeout):
                 while True:
-                    msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
-                    if msg is None:
+                    msgs = await self.redis.xread({stream: "0"}, block=1000, count=1)
+                    if not msgs:
                         continue
-
-                    res = loads(msg["data"])
-                    if res.get("correlation_id") == correlation_id:
-                        return res.get("result")
+                    for _, entries in msgs:
+                        for msg_id, msg_data in entries:
+                            res = loads(msg_data[b"data"])
+                            if res.get("correlation_id") == correlation_id:
+                                await self.redis.xdel(stream, msg_id)
+                                return res.get("result")
         except TimeoutError as exc:
             raise TimeoutError("Task result timeout") from exc
-
-        finally:
-            await pubsub.unsubscribe(replay_to)
-            await pubsub.close()
 
 
 class AMQPBackend(BaseBackend):
@@ -225,9 +252,7 @@ class AMQPBackend(BaseBackend):
         self.__channel__ = channel = await self.__backend__.channel()
 
         await channel.set_qos(prefetch_count=1)
-        self.__queue__ = await channel.declare_queue(
-            self.params["queue"], durable=True
-        )
+        self.__queue__ = await channel.declare_queue(self.params["queue"], durable=True)
 
         exchange_name = self.params["exchange"]
         if exchange_name:
@@ -314,6 +339,7 @@ class AMQPBackend(BaseBackend):
         if not isinstance(value, Exchange):
             raise TypeError
         self.__exchange__ = value
+
 
 BACKENDS: dict[TBackendType, type[BaseBackend]] = {
     "memory": MemoryBackend,

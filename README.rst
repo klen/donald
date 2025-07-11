@@ -33,8 +33,8 @@ jobs from AMQP queues.
 Key Features
 ============
 
+- Works with asyncio
 - Simple and lightweight API
-- Works with asyncio (Python 3.9+)
 - Supports multiple backends: `memory`, `redis`, `amqp`
 - Periodic task scheduling (cron or intervals)
 - Built-in retry mechanism and failbacks
