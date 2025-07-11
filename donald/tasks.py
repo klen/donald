@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Concatenate, Unpack, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 from .utils import current_manager, to_coroutinefn
 
 if TYPE_CHECKING:
+    from _compat import Concatenate, Unpack
+
     from .manager import Donald
     from .types import TInterval, TRunArgs, TTaskParams, TTaskParamsPartial
 
