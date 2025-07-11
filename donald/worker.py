@@ -10,13 +10,9 @@ from importlib import metadata
 from random import random
 from typing import TYPE_CHECKING, AsyncIterator, ClassVar, cast
 
-try:
-    from asyncio import timeout as async_timeout  # type: ignore[attr-defined]
-except ImportError:  # python 39, 310
-    from async_timeout import timeout as async_timeout  # type: ignore[assignment, no-redef]
-
 from donald.tasks import TaskRun, TaskWrapper
 
+from ._compat import async_timeout
 from .utils import import_obj, logger
 
 if TYPE_CHECKING:
@@ -153,7 +149,7 @@ class Worker:
             if reply_to and correlation_id:
                 await self._backend.callback(result, reply_to, correlation_id)
 
-            return result  # noqa: TRY300
+            return result
 
         except Exception as exc:
             if bind:

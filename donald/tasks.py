@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, cast
-
-from typing_extensions import Concatenate, Unpack
+from typing import TYPE_CHECKING, Any, Callable, Concatenate, Unpack, cast
 
 from .utils import current_manager, to_coroutinefn
 
@@ -103,5 +101,3 @@ class TaskRun:
     def __repr__(self):
         path = self.data[0]
         return f"<TaskRun {path}>"
-
-# ruff: noqa: TRY003

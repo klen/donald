@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12']
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     services:
       rmq:
@@ -23,26 +23,26 @@ jobs:
         ports: ["5672:5672"]
 
     steps:
-    - name: Checkout changes
-      uses: actions/checkout@main
+      - name: Checkout changes
+        uses: actions/checkout@main
 
-    - name: Sleep 2s to make rmq start
-      run: sleep 2
+      - name: Sleep 2s to make rmq start
+        run: sleep 2
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@main
-      with:
-        cache: pip
-        python-version: ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@main
+        with:
+          cache: pip
+          python-version: ${{ matrix.python-version }}
 
-    - name: Setup dependencies
-      run: pip install .[tests]
+      - name: Setup dependencies
+        run: pip install .[tests]
 
-    - name: Check types
-      run: mypy --install-types --non-interactive
+      - name: Check types
+        run: mypy --install-types --non-interactive
 
-    - name: Check code
-      run: ruff check donald
+      - name: Check code
+        run: ruff check donald
 
-    - name: Test with Pytest
-      run: pytest tests
+      - name: Test with Pytest
+        run: pytest tests

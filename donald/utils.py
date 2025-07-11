@@ -17,7 +17,7 @@ def import_obj(path: str) -> Any:
     try:
         module = import_module(module_path)
     except (ImportError, AttributeError, ValueError) as exc:
-        raise ImportError(f"Could not import {path!r}") from exc  # noqa: TRY003
+        raise ImportError(f"Could not import {path!r}") from exc
     else:
         return getattr(module, obj_path)
 

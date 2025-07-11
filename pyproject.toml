@@ -13,10 +13,10 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Framework :: AsyncIO",
 ]
 dependencies = [
@@ -24,7 +24,6 @@ dependencies = [
   "click         >= 6.7",
   "crontab       >= 0.22.0",
   "async-timeout;python_version<'3.11'",
-  "typing-extensions;python_version<'3.10'",
 ]
 
 [project.urls]
@@ -55,40 +54,37 @@ ignore_missing_imports = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py39,py310,py311,py312,pypy39
+envlist = py310,py311,py312,py313
 
 [testenv]
 deps = -e .[tests]
 commands =
 	pytest --mypy tests
-
-[testenv:pypy39]
-deps = -e .[tests]
-commands =
-	pytest tests
 """
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py311"
 exclude = [".venv", "docs", "example.py"]
 
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-  "D",
-  "COM",
-  "UP",
   "ANN",
+  "ASYNC",
+  "COM",
+  "D",
   "DJ",
-  "EM",
-  "RSE",
-  "SLF",
-  "RET",
-  "S101",
-  "PLR2004",
-  "N804",
   "E731",
+  "EM",
+  "N804",
+  "PLR2004",
+  "RET",
+  "RSE",
+  "S101",
+  "SLF",
+  "TRY",
+  "UP",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -96,5 +92,5 @@ ignore = [
 
 [tool.black]
 line-length = 100
-target-version = ["py39", "py310", "py311", "py312"]
+target-version = ["py311", "py312", "py313"]
 preview = true

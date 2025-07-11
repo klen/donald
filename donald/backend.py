@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import asyncio
+from asyncio import Queue, sleep
 from pickle import dumps, loads
 from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Mapping
 from uuid import uuid4
 
 from aio_pika import DeliveryMode, Exchange, Message, connect_robust
 
+from ._compat import async_timeout
 from .utils import BackendNotReadyError, logger
 
 if TYPE_CHECKING:
@@ -74,15 +75,15 @@ class MemoryBackend(BaseBackend):
     backend_type: TBackendType = "memory"
 
     @property
-    def rx(self) -> asyncio.Queue:
+    def rx(self) -> Queue:
         if self.__backend__ is None:
             raise BackendNotReadyError
 
         return self.__backend__
 
     async def _connect(self):
-        self.__backend__ = asyncio.Queue()
-        self.__results__ = asyncio.Queue()
+        self.__backend__ = Queue()
+        self.__results__ = Queue()
 
     async def _submit(self, data):
         self.rx.put_nowait(data)
@@ -98,7 +99,7 @@ class MemoryBackend(BaseBackend):
                     continue
 
                 yield loads(msg)
-                await asyncio.sleep(0)
+                await sleep(0)
 
         return iter_tasks()
 
@@ -115,7 +116,7 @@ class MemoryBackend(BaseBackend):
         await self._submit(dumps(data))
 
         try:
-            async with asyncio.timeout(timeout):
+            async with async_timeout(timeout):
                 while True:
                     msg = await self.__results__.get()
                     res = loads(msg)
@@ -124,7 +125,7 @@ class MemoryBackend(BaseBackend):
                     else:
                         # Put back unmatched results for other waits
                         self.__results__.put_nowait(msg)
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             raise TimeoutError("Task result timeout") from exc
 
 class RedisBackend(BaseBackend):
@@ -160,7 +161,7 @@ class RedisBackend(BaseBackend):
             while self.is_connected:
                 msg = await pubsub.get_message()
                 if msg is None:
-                    await asyncio.sleep(1e-2)
+                    await sleep(1e-2)
                     continue
 
                 yield loads(msg["data"])
@@ -189,7 +190,7 @@ class RedisBackend(BaseBackend):
         await pubsub.subscribe(replay_to)
 
         try:
-            async with asyncio.timeout(timeout):
+            async with async_timeout(timeout):
                 while True:
                     msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
                     if msg is None:
@@ -198,7 +199,7 @@ class RedisBackend(BaseBackend):
                     res = loads(msg["data"])
                     if res.get("correlation_id") == correlation_id:
                         return res.get("result")
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             raise TimeoutError("Task result timeout") from exc
 
         finally:
@@ -294,12 +295,12 @@ class AMQPBackend(BaseBackend):
 
         async with callback_queue.iterator() as queue_iter:
             try:
-                async with asyncio.timeout(timeout):
+                async with async_timeout(timeout):
                     async for message in queue_iter:
                         async with message.process():
                             if message.correlation_id == correlation_id:
                                 return loads(message.body)
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 raise TimeoutError("Task result timeout") from exc
 
     @property
@@ -320,4 +321,4 @@ BACKENDS: dict[TBackendType, type[BaseBackend]] = {
     "amqp": AMQPBackend,
 }
 
-# ruff: noqa: S301, TRY003, ARG002, PLC0415
+# ruff: noqa: S301, ARG002, PLC0415

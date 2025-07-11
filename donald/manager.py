@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, cast
-
-from typing_extensions import Unpack
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Unpack, cast
 
 from .backend import BACKENDS, BaseBackend
 from .utils import ManagerNotReadyError, current_manager, logger
@@ -172,7 +170,7 @@ class Donald:
     async def healthcheck(self, timeout=10) -> bool:
         try:
             result = await self.submit_and_wait(ping, timeout=timeout)
-            return result == "pong"  # noqa: TRY300
+            return result == "pong"
         except Exception as exc:  # noqa: BLE001
             logger.exception("Healthcheck failed", exc_info=exc)
             return False
@@ -184,5 +182,3 @@ async def ping():
 
 from .scheduler import Scheduler  # noqa: E402
 from .tasks import TaskRun, TaskWrapper  # noqa: E402
-
-# ruff: noqa: TRY003
