@@ -1,4 +1,4 @@
-Donald 2.0.1
+Donald 2.0.2
 #############
 
 .. _description:
