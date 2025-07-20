@@ -58,8 +58,8 @@ class Scheduler:
         self._tasks.clear()
 
     def schedule(  # noqa: C901
-            self, interval: TInterval, *, run_immediately: bool = False, backoff: float = 0
-        ) -> Callable[[TaskWrapper], TaskWrapper]:
+        self, interval: TInterval, *, run_immediately: bool = False, backoff: float = 0
+    ) -> Callable[[TaskWrapper], TaskWrapper]:
         """
         Schedule a task to run periodically with optional immediate run and backoff on failure.
         """
@@ -86,9 +86,7 @@ class Scheduler:
                 try:
                     task.submit()
                 except Exception as exc:  # noqa: BLE001
-                    logger.exception(
-                        "Immediate run of '%s' failed",
-                        task.import_path(task._fn), exc_info=exc)
+                    logger.exception("Run of '%s' failed", task.import_path(task._fn), exc_info=exc)
                     if backoff:
                         await sleep(backoff)
 
