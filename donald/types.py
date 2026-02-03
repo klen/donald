@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Coroutine,
@@ -13,7 +14,9 @@ from typing import (
 )
 
 from crontab import CronTab
-from typing_extensions import NotRequired  # py310
+
+if TYPE_CHECKING:
+    from ._compat import NotRequired
 
 TWorkerOnFn = Callable[[], Coroutine]
 TVWorkerOnFn = TypeVar("TVWorkerOnFn", bound=TWorkerOnFn)
@@ -28,6 +31,7 @@ TBackendType = Literal["memory", "redis", "amqp"]
 
 TInterval = Union[timedelta, int, float, str, CronTab]
 
+
 class TTaskParams(TypedDict):
     bind: bool
     delay: float
@@ -38,6 +42,7 @@ class TTaskParams(TypedDict):
     reply_to: NotRequired[str]
     correlation_id: NotRequired[str]
 
+
 class TTaskParamsPartial(TypedDict):
     bind: NotRequired[bool]
     delay: NotRequired[float]
@@ -46,7 +51,9 @@ class TTaskParamsPartial(TypedDict):
     retries_backoff_factor: NotRequired[float]
     retries_backoff_max: NotRequired[float]
 
+
 TRunArgs = tuple[str, tuple, dict[str, Any], TTaskParams]
+
 
 class TWorkerParams(TypedDict):
     max_tasks: Optional[int]

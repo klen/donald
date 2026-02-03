@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import os
-from asyncio import iscoroutine
 from asyncio.exceptions import CancelledError
 from asyncio.locks import Event, Semaphore
 from asyncio.tasks import Task, create_task, gather, sleep
 from contextlib import suppress
 from importlib import metadata
+from inspect import iscoroutine
 from random import random
-from typing import TYPE_CHECKING, AsyncIterator, ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from donald.tasks import TaskRun, TaskWrapper
 
@@ -16,9 +16,8 @@ from ._compat import async_timeout
 from .utils import import_obj, logger
 
 if TYPE_CHECKING:
-
     from .backend import BaseBackend
-    from .types import TRunArgs, TTaskParams, TWorkerParams
+    from .types import TTaskParams, TWorkerParams
 
 BANNER = r"""
 
@@ -96,7 +95,7 @@ class Worker:
             await on_start()
 
         logger.info("Worker started")
-        task_iter: AsyncIterator[TRunArgs] = await self._backend.subscribe()
+        task_iter = await self._backend.subscribe()
         sem, tasks, finish_task = self._sem, self._tasks, self.finish_task
         async for task_msg in task_iter:
             path, args, kwargs, params = task_msg
@@ -129,19 +128,19 @@ class Worker:
         timeout: float = 0,
         retries_max: int = 0,
         retries_backoff_max: float = 600,
-        retries_backoff_factor: float = .5,
+        retries_backoff_factor: float = 0.5,
         reply_to: str | None = None,
         correlation_id: str | None = None,
     ):
         """Run a task with the given parameters."""
         # Process delay
         if delay:
-            await sleep(cast("float", delay))
+            await sleep(delay)
 
         # Process timeout
         try:
             if timeout:
-                async with async_timeout(cast("float", timeout)):
+                async with async_timeout(timeout):
                     result = await tw._fn(*args, **kwargs)
             else:
                 result = await tw._fn(*args, **kwargs)
@@ -160,7 +159,9 @@ class Worker:
                 retries += 1
 
             if retries <= retries_max:
-                backoff = min(retries_backoff_max, retries_backoff_factor * (2 ** (retries - 1) + random()))  # noqa: S311, E501
+                backoff = min(
+                    retries_backoff_max, retries_backoff_factor * (2 ** (retries - 1) + random())
+                )
                 logger.info("Retry: '%s' (%d) in %.2fs", tw._fn.__qualname__, retries, backoff)
                 return await self.run_task(
                     tw,
@@ -218,3 +219,6 @@ class Worker:
             logger.info("Waiting for %d tasks to complete", len(self._tasks))
             return await gather(*tasks, return_exceptions=True)
         return None
+
+
+# ruff:noqa:S311

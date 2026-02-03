@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from asyncio import Queue, sleep
 from pickle import dumps, loads
-from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Mapping
+from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Coroutine, Mapping
 from uuid import uuid4
 
 from aio_pika import DeliveryMode, Exchange, Message, connect_robust
@@ -12,6 +13,7 @@ from .utils import BackendNotReadyError, logger
 
 if TYPE_CHECKING:
     from aio_pika import Channel
+    from aio_pika.abc import AbstractChannel, AbstractExchange
     from redis.asyncio import Redis
 
     from donald.types import TTaskParams
@@ -52,23 +54,23 @@ class BaseBackend:
 
         return await self._submit_and_wait(data, timeout=timeout)
 
-    async def callback(self, result, reply_to: str, correlation_id: str):
-        raise NotImplementedError
+    @abstractmethod
+    async def _connect(self): ...
 
-    async def subscribe(self) -> AsyncIterator[TRunArgs]:
-        raise NotImplementedError
+    @abstractmethod
+    async def _disconnect(self): ...
 
-    async def _connect(self):
-        raise NotImplementedError
+    @abstractmethod
+    async def _submit(self, data) -> Any: ...
 
-    async def _disconnect(self):
-        pass
+    @abstractmethod
+    async def _submit_and_wait(self, data, timeout=10): ...
 
-    async def _submit(self, data):
-        raise NotImplementedError
+    @abstractmethod
+    async def callback(self, result, reply_to: str, correlation_id: str): ...
 
-    async def _submit_and_wait(self, data, timeout=10):
-        raise NotImplementedError
+    @abstractmethod
+    def subscribe(self) -> Coroutine[Any, Any, AsyncIterator[TRunArgs]]: ...
 
 
 class MemoryBackend(BaseBackend):
@@ -165,14 +167,14 @@ class RedisBackend(BaseBackend):
         self.is_connected = True
 
     async def _disconnect(self):
-        await self.redis.close()
+        await self.redis.aclose()  # type: ignore[]
         self.is_connected = False
 
     async def _submit(self, data):
         stream = f"{self.params['channel']}:stream"
         return await self.redis.xadd(stream, {"data": data})
 
-    async def subscribe(self) -> AsyncIterator[TRunArgs]:
+    async def subscribe(self):
         stream = f"{self.params['channel']}:stream"
         group = f"{self.params['channel']}:group"
         consumer = self.params["consumer"]
@@ -244,8 +246,8 @@ class AMQPBackend(BaseBackend):
 
     def __init__(self, params: Mapping):
         super().__init__(params)
-        self.__channel__: Channel | None = None
-        self.__exchange__: Exchange | None = None
+        self.__channel__: Channel | AbstractChannel | None = None
+        self.__exchange__: Exchange | AbstractExchange | None = None
 
     async def _connect(self):
         self.__backend__ = await connect_robust(self.params["url"])
@@ -274,7 +276,7 @@ class AMQPBackend(BaseBackend):
             routing_key=self.params["queue"],
         )
 
-    async def subscribe(self) -> AsyncIterator[TRunArgs]:
+    async def subscribe(self):
         queue = self.__queue__
 
         async def iter_tasks() -> AsyncIterator[TRunArgs]:
@@ -329,13 +331,13 @@ class AMQPBackend(BaseBackend):
                 raise TimeoutError("Task result timeout") from exc
 
     @property
-    def exchange(self) -> Exchange:
+    def exchange(self) -> Exchange | AbstractExchange:
         if self.__exchange__ is None:
             raise BackendNotReadyError
         return self.__exchange__
 
     @exchange.setter
-    def exchange(self, value: Exchange):
+    def exchange(self, value: Exchange | AbstractExchange):
         if not isinstance(value, Exchange):
             raise TypeError
         self.__exchange__ = value

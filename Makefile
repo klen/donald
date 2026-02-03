@@ -64,8 +64,8 @@ t test: $(VIRTUAL_ENV)
 	docker start rabbitmq
 	@$(VIRTUAL_ENV)/bin/pytest tests
 
-mypy: $(VIRTUAL_ENV)
-	mypy donald
+types: $(VIRTUAL_ENV)
+	pyrefly check $(CURDIR)/donald
 
 example: $(VIRTUAL_ENV)
 	$(VIRTUAL_ENV)/bin/python -m donald -M example.manager worker -S

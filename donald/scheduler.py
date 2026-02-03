@@ -49,10 +49,8 @@ class Scheduler:
     async def join(self, timeout: float | None = None):
         """Wait for all scheduler tasks to complete with optional timeout."""
         try:
-            await asyncio.wait_for(
-                gather(*self._tasks, return_exceptions=True),
-                timeout=timeout,
-            )
+            fut = gather(*self._tasks, return_exceptions=True)
+            await asyncio.wait_for(fut, timeout=timeout)
         except asyncio.TimeoutError:
             logger.warning("Scheduler join timed out")
         self._tasks.clear()

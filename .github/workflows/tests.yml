@@ -39,7 +39,7 @@ jobs:
         run: pip install .[tests]
 
       - name: Check types
-        run: mypy --install-types --non-interactive
+        run: pyrefly check
 
       - name: Check code
         run: ruff check donald

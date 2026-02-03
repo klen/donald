@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
-from asyncio.coroutines import iscoroutinefunction
 from functools import wraps
 from importlib import import_module
+from inspect import iscoroutinefunction
 from threading import local
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Final, overload
 
@@ -23,13 +23,11 @@ def import_obj(path: str) -> Any:
 
 
 @overload
-def to_coroutinefn(fn: TVAsyncFn) -> TVAsyncFn:
-    ...
+def to_coroutinefn(fn: TVAsyncFn) -> TVAsyncFn: ...
 
 
 @overload
-def to_coroutinefn(fn: Callable[..., TV]) -> Callable[..., Coroutine[Any, Any, TV]]:
-    ...
+def to_coroutinefn(fn: Callable[..., TV]) -> Callable[..., Coroutine[Any, Any, TV]]: ...
 
 
 def to_coroutinefn(fn):

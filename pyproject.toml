@@ -17,6 +17,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Framework :: AsyncIO",
 ]
 dependencies = [
@@ -35,7 +36,15 @@ repository = "https://github.com/klen/donald"
 donald = "donald.__main__:main"
 
 [project.optional-dependencies]
-tests = ["redis", "types-redis", "pytest", "pytest-aio", "pytest-mypy", "pytest-redislite", "ruff"]
+tests = [
+  "pyrefly",
+  "pytest",
+  "pytest-aio",
+  "pytest-redislite",
+  "redis",
+  "ruff",
+  "tox",
+]
 dev = ["pre-commit", "bump2version"]
 redis = ["redis"]
 
@@ -48,19 +57,19 @@ donald = ["py.typed"]
 [tool.pytest.ini_options]
 addopts = "-xsvl"
 
-[tool.mypy]
-packages = ["donald"]
-ignore_missing_imports = true
+[tool.pyrefly]
+project-includes = ["donald"]
+python-version = "3.11"
 
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py310,py311,py312,py313
+envlist = py310,py311,py312,py313,py314
 
 [testenv]
 deps = -e .[tests]
 commands =
-	pytest --mypy tests
+	pytest tests
 """
 
 [tool.ruff]
@@ -89,9 +98,16 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ARG", "TRY", "F", "PGH", "PLR", "PLW", "PTH", "SIM", "ERA", "RET504", "T20"]
-
-[tool.black]
-line-length = 100
-target-version = ["py310", "py311", "py312", "py313"]
-preview = true
+"tests/*" = [
+  "ARG",
+  "TRY",
+  "F",
+  "PGH",
+  "PLR",
+  "PLW",
+  "PTH",
+  "SIM",
+  "ERA",
+  "RET504",
+  "T20",
+]
