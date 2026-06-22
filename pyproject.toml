@@ -1,6 +1,6 @@
 [project]
 name = "donald"
-version = "2.2.0"
+version = "2.2.1"
 description = "Task manager for asyncio"
 readme = "README.rst"
 requires-python = ">=3.11"
@@ -95,7 +95,7 @@ ignore = [
 ]
 
 [tool.bumpversion]
-current_version = "2.2.0"
+current_version = "2.2.1"
 commit = false
 tag = false
 
