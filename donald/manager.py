@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, cast
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Self, cast
 
 from .backend import BACKENDS, BaseBackend
 from .utils import ManagerNotReadyError, current_manager, logger
 from .worker import Worker
 
 if TYPE_CHECKING:
-    from ._compat import Unpack
+    from typing import Unpack
+
     from .types import (
         TInterval,
         TManagerParams,
@@ -45,7 +46,7 @@ class Donald:
         return f"<Donald {self._params['backend']}>"
 
     @classmethod
-    async def create(cls, **params) -> Donald:
+    async def create(cls, **params) -> Self:
         """Create a new instance of Donald and start it."""
         self = cls(**params)
         await self.start()
@@ -93,9 +94,9 @@ class Donald:
             "TWorkerParams",
             dict(self._params["worker_params"], **params),
         )
-        return Worker(self._backend, worker_params)
+        return Worker(self, worker_params)
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         await self.start()
         return self
 

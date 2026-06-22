@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from asyncio import timeout as async_timeout
 from asyncio.exceptions import CancelledError
 from asyncio.locks import Event, Semaphore
 from asyncio.tasks import Task, create_task, gather, sleep
@@ -12,11 +13,10 @@ from typing import TYPE_CHECKING, ClassVar, cast
 
 from donald.tasks import TaskRun, TaskWrapper
 
-from ._compat import async_timeout
-from .utils import import_obj, logger
+from .utils import current_manager, import_obj, logger
 
 if TYPE_CHECKING:
-    from .backend import BaseBackend
+    from .manager import Donald
     from .types import TTaskParams, TWorkerParams
 
 BANNER = r"""
@@ -42,8 +42,9 @@ class Worker:
         "show_banner": False,
     }
 
-    def __init__(self, backend: BaseBackend, params: TWorkerParams):
-        self._backend = backend
+    def __init__(self, manager: Donald, params: TWorkerParams):
+        self._manager = manager
+        self._backend = manager._backend
         self._runner = None
         self._params = cast("TWorkerParams", dict(self.defaults, **params))
         self._task_params = cast("TTaskParams", self._params["task_defaults"] or {})
@@ -90,6 +91,8 @@ class Worker:
         return self._finished.wait()
 
     async def run_worker(self: Worker):
+        current_manager.value = self._manager
+
         on_start = self._params.get("on_start")
         if on_start:
             await on_start()
@@ -169,7 +172,7 @@ class Worker:
                     kwargs,
                     retries=retries,
                     bind=bind,
-                    delay=delay + backoff,
+                    delay=backoff,
                     timeout=timeout,
                     retries_max=retries_max,
                     retries_backoff_factor=retries_backoff_factor,

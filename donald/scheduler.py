@@ -78,13 +78,15 @@ class Scheduler:
 
         def wrapper(task: TaskWrapper):
             assert isinstance(task, TaskWrapper), "Only tasks can be scheduled."
+            fn_path = task.import_path(task._fn)
 
             async def submit():
                 """Submit the task to the event loop."""
+                logger.info("Submitting task '%s'", fn_path)
                 try:
                     task.submit()
                 except Exception as exc:  # noqa: BLE001
-                    logger.exception("Run of '%s' failed", task.import_path(task._fn), exc_info=exc)
+                    logger.exception("Failed to submit task '%s'", fn_path, exc_info=exc)
                     if backoff:
                         await sleep(backoff)
 
@@ -94,7 +96,7 @@ class Scheduler:
 
                 while True:
                     to_sleep = max(timer(), 1e-2)
-                    logger.info("Next '%s' in %0.2f s", task.import_path(task._fn), to_sleep)
+                    logger.info("Next run of '%s': %s", fn_path, timedelta(seconds=to_sleep))
                     await sleep(to_sleep)
                     await submit()
 

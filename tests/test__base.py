@@ -41,3 +41,25 @@ async def test_dont_wrap_local_tasks():
 
     with pytest.raises(AssertionError):
         donald.task()(foo)
+
+
+def test_retries_max_validation():
+    donald = Donald()
+
+    with pytest.raises(ValueError, match="retries_max must be"):
+        donald.task(retries_max=-1)(foo)
+
+    with pytest.raises(ValueError, match="retries_max must be"):
+        donald.task(retries_max=101)(foo)
+
+    # Boundary values should be accepted.
+    assert donald.task(retries_max=0)(foo)
+    assert donald.task(retries_max=100)(foo)
+
+
+def test_retries_max_per_submit_validation():
+    donald = Donald()
+    tw = donald.task()(foo)
+
+    with pytest.raises(ValueError, match="retries_max must be"):
+        tw.get_run(kwargs={}, retries_max=101)

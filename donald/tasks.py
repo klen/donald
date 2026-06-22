@@ -5,11 +5,13 @@ from typing import TYPE_CHECKING, Any, Callable, cast
 from .utils import current_manager, to_coroutinefn
 
 if TYPE_CHECKING:
-    from ._compat import Concatenate, Unpack
+    from typing import Concatenate, Unpack
 
 if TYPE_CHECKING:
     from .manager import Donald
     from .types import TInterval, TRunArgs, TTaskParams, TTaskParamsPartial
+
+MAX_RETRIES = 100
 
 
 class TaskWrapper:
@@ -30,6 +32,7 @@ class TaskWrapper:
         retries_backoff_max: float = 600,
     ):
         assert "<locals>" not in fn.__qualname__, "Can't use local functions as tasks"
+        _validate_retries_max(retries_max)
 
         self._manager = manager
         self._fn = to_coroutinefn(fn)
@@ -54,6 +57,9 @@ class TaskWrapper:
         return f"{fn.__module__}.{fn.__qualname__}"
 
     def get_run(self, *args, kwargs: dict, **params: Unpack[TTaskParamsPartial]) -> TaskRun:
+        retries_max = params.get("retries_max")
+        if retries_max is not None:
+            _validate_retries_max(retries_max)
         task_params = cast("TTaskParams", dict(self._params, **params))
         return TaskRun(self.import_path(self._fn), args, kwargs or {}, task_params)
 
@@ -115,3 +121,8 @@ class TaskRun:
     def __repr__(self):
         path = self.data[0]
         return f"<TaskRun {path}>"
+
+
+def _validate_retries_max(retries_max: int):
+    if retries_max > MAX_RETRIES or retries_max < 0:
+        raise ValueError(f"retries_max must be between 0 and {MAX_RETRIES}, got {retries_max}")

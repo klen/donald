@@ -1,19 +1,20 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from asyncio import Queue, sleep
+from asyncio import Future, Queue, get_running_loop, sleep
+from asyncio import timeout as async_timeout
 from pickle import dumps, loads
 from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Coroutine, Mapping
 from uuid import uuid4
 
 from aio_pika import DeliveryMode, Exchange, Message, connect_robust
+from aio_pika.abc import AbstractExchange
 
-from ._compat import async_timeout
 from .utils import BackendNotReadyError, logger
 
 if TYPE_CHECKING:
     from aio_pika import Channel
-    from aio_pika.abc import AbstractChannel, AbstractExchange
+    from aio_pika.abc import AbstractChannel
     from redis.asyncio import Redis
 
     from donald.types import TTaskParams
@@ -76,6 +77,10 @@ class BaseBackend:
 class MemoryBackend(BaseBackend):
     backend_type: TBackendType = "memory"
 
+    def __init__(self, params: Mapping):
+        super().__init__(params)
+        self.__pending__: dict[str, Future] = {}
+
     @property
     def rx(self) -> Queue:
         if self.__backend__ is None:
@@ -84,8 +89,8 @@ class MemoryBackend(BaseBackend):
         return self.__backend__
 
     async def _connect(self):
-        self.__backend__ = Queue()
-        self.__results__ = Queue()
+        if self.__backend__ is None:
+            self.__backend__ = Queue()
 
     async def _submit(self, data):
         self.rx.put_nowait(data)
@@ -106,9 +111,9 @@ class MemoryBackend(BaseBackend):
         return iter_tasks()
 
     async def callback(self, result, reply_to: str, correlation_id: str):
-        return self.__results__.put_nowait(
-            dumps({"result": result, "correlation_id": correlation_id})
-        )
+        future = self.__pending__.pop(correlation_id, None)
+        if future is not None and not future.done():
+            future.set_result(result)
 
     async def _submit_and_wait(self, data: TRunArgs, timeout=10):
         correlation_id = str(uuid4())
@@ -117,18 +122,15 @@ class MemoryBackend(BaseBackend):
         data = (task_name, args, kwargs, _params)
         await self._submit(dumps(data))
 
+        future = get_running_loop().create_future()
+        self.__pending__[correlation_id] = future
         try:
             async with async_timeout(timeout):
-                while True:
-                    msg = await self.__results__.get()
-                    res = loads(msg)
-                    if res.get("correlation_id") == correlation_id:
-                        return res.get("result")
-                    else:
-                        # Put back unmatched results for other waits
-                        self.__results__.put_nowait(msg)
+                return await future
         except TimeoutError as exc:
             raise TimeoutError("Task result timeout") from exc
+        finally:
+            self.__pending__.pop(correlation_id, None)
 
 
 class RedisBackend(BaseBackend):
@@ -338,8 +340,8 @@ class AMQPBackend(BaseBackend):
 
     @exchange.setter
     def exchange(self, value: Exchange | AbstractExchange):
-        if not isinstance(value, Exchange):
-            raise TypeError
+        if not isinstance(value, AbstractExchange):
+            raise TypeError(f"Expected AbstractExchange, got {type(value).__name__}")
         self.__exchange__ = value
 
 
