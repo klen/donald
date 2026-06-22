@@ -34,13 +34,7 @@ repository = "https://github.com/klen/donald"
 donald = "donald.__main__:main"
 
 [project.optional-dependencies]
-tests = [
-  "pyrefly",
-  "pytest",
-  "pytest-aio",
-  "redis",
-  "ruff",
-]
+tests = ["pyrefly", "pytest", "pytest-aio", "redis", "ruff"]
 dev = ["pre-commit", "bump2version"]
 redis = ["redis"]
 
@@ -99,3 +93,13 @@ ignore = [
   "RET504",
   "T20",
 ]
+
+[tool.bumpversion]
+current_version = "2.2.0"
+commit = false
+tag = false
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'

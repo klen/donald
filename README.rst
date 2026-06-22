@@ -1,5 +1,5 @@
-Donald 2.2.0
-#############
+Donald
+######
 
 .. _description:
 
