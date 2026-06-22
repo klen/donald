@@ -51,24 +51,50 @@ example:
 #  Bump version
 # ==============
 
+RELEASE	?= minor
+MANAGER	?= uv
+
 .PHONY: release
-VERSION?=minor
 # target: release - Bump version
 release:
-	@uv run bump2version $(VERSION)
+	@echo "Starting release process (bumping $(RELEASE) version)..."
 	@git checkout main
-	@git merge develop
+	@git pull
 	@git checkout develop
-	@git push --all
-	@git push --tags
+	@git pull
+	@echo "Bumping version and creating release commit and tag..."
+	@uvx bump-my-version bump $(RELEASE)
+	@echo "Version bumped to `$(MANAGER) version --short`."
+	@$(MANAGER) lock
+	@echo "Committing version bump and creating tag..."
+	@VERSION=`$(MANAGER) version --short`; \
+		{ \
+			printf 'build(release): %s\n\n' "$$VERSION"; \
+			printf 'Changes:\n\n'; \
+			git log --oneline --pretty=format:'%s [%an]' main..develop | grep -Evi 'github|^Merge' || true; \
+		} | git commit -a -F -
+	@echo "Merging changes between branches..."
+	@git checkout main
+	@git merge --ff-only develop
+	@VERSION=`$(MANAGER) version --short`; \
+		git push origin main; \
+		git tag -a "$$VERSION" -m "$$VERSION"; \
+		git push origin "$$VERSION"
+	@git checkout develop
+	@git merge --ff-only main
+	@git push origin develop
+	@echo "Release process complete for `$(MANAGER) version --short`"
 
 .PHONY: minor
 minor: release
 
 .PHONY: patch
 patch:
-	make release VERSION=patch
+	make release RELEASE=patch
 
 .PHONY: major
 major:
-	make release VERSION=major
+	make release RELEASE=major
+
+version v:
+	uv version --short
