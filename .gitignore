@@ -39,5 +39,5 @@ __pycache__/
 # OS files
 .DS_Store
 
-# Lock files (project-specific)
-*.*lock
+# Lock files
+!uv.lock

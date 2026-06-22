@@ -1,5 +1,5 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+# This workflow will install Python dependencies, run tests and lint with uv
+# For more information see: https://help.github.com/actions/language-guides/using-python-with-github-actions
 
 name: tests
 
@@ -29,20 +29,19 @@ jobs:
       - name: Sleep 2s to make rmq start
         run: sleep 2
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@main
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          cache: pip
           python-version: ${{ matrix.python-version }}
 
-      - name: Setup dependencies
-        run: pip install .[tests]
+      - name: Sync dependencies
+        run: uv sync --extra tests
 
       - name: Check types
-        run: pyrefly check
+        run: uv run pyrefly check
 
       - name: Check code
-        run: ruff check donald
+        run: uv run ruff check donald
 
       - name: Test with Pytest
-        run: pytest tests
+        run: uv run pytest tests

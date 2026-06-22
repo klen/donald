@@ -1,7 +1,3 @@
-VIRTUAL_ENV ?= $(CURDIR)/.venv
-
-all: $(VIRTUAL_ENV)
-
 .PHONY: help
 # target: help - Display callable targets
 help:
@@ -10,10 +6,10 @@ help:
 .PHONY: clean
 # target: clean - Clean the repository
 clean:
-	rm -rf build/ dist/ docs/_build *.egg-info
+	rm -rf build/ dist/ docs/_build *.egg-info .venv .tox
 	find $(CURDIR) -name "*.py[co]" -delete
 	find $(CURDIR) -name "*.orig" -delete
-	find $(CURDIR)/$(MODULE) -name "__pycache__" -delete
+	find $(CURDIR) -name "__pycache__" -delete
 
 # ==============
 #  Bump version
@@ -22,8 +18,8 @@ clean:
 .PHONY: release
 VERSION?=minor
 # target: release - Bump version
-release: $(VIRTUAL_ENV)
-	@$(VIRTUAL_ENV)/bin/bump2version $(VERSION)
+release:
+	@uv run bump2version $(VERSION)
 	@git checkout master
 	@git merge develop
 	@git checkout develop
@@ -45,27 +41,34 @@ major:
 #  Development
 # =============
 
-$(VIRTUAL_ENV): pyproject.toml
-	python -m venv $(VIRTUAL_ENV)
-	$(VIRTUAL_ENV)/bin/pip install -e .[tests,dev]
-	$(VIRTUAL_ENV)/bin/pre-commit install
-	touch $(VIRTUAL_ENV)
+.PHONY: install
+# target: install - Install project dependencies via uv
+install:
+	uv sync --extra tests --extra dev
+	uv run pre-commit install
 
+.PHONY: run
+# target: run - Run test.py via uv
+run:
+	uv run python test.py
 
-run: $(VIRTUAL_ENV)
-	$(VIRTUAL_ENV)/bin/python test.py
-
+.PHONY: rabbit
+# target: rabbit - Start a local RabbitMQ container for AMQP tests
 rabbit:
 	docker run --name rabbit --rm -p 15672:15672 -p 5672:5672 rabbitmq:3-management
 
 .PHONY: t test
 # target: test - Runs tests
-t test: $(VIRTUAL_ENV)
-	docker start rabbitmq
-	@$(VIRTUAL_ENV)/bin/pytest tests
+t test:
+	docker start rabbitmq || true
+	@uv run pytest tests
 
-types: $(VIRTUAL_ENV)
-	pyrefly check $(CURDIR)/donald
+.PHONY: types
+# target: types - Run pyrefly type checker
+types:
+	uv run pyrefly check $(CURDIR)/donald
 
-example: $(VIRTUAL_ENV)
-	$(VIRTUAL_ENV)/bin/python -m donald -M example.manager worker -S
+.PHONY: example
+# target: example - Run example worker via uv
+example:
+	uv run python -m donald -M example.manager worker -S

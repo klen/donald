@@ -41,7 +41,6 @@ tests = [
   "pytest-redislite",
   "redis",
   "ruff",
-  "tox",
 ]
 dev = ["pre-commit", "bump2version"]
 redis = ["redis"]
@@ -58,17 +57,6 @@ addopts = "-xsvl"
 [tool.pyrefly]
 project-includes = ["donald"]
 python-version = "3.11"
-
-[tool.tox]
-legacy_tox_ini = """
-[tox]
-envlist = py311,py312,py313,py314
-
-[testenv]
-deps = -e .[tests]
-commands =
-	pytest tests
-"""
 
 [tool.ruff]
 line-length = 100
