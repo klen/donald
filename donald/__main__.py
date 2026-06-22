@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import signal
 from functools import wraps
-from typing import TYPE_CHECKING, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Callable, Coroutine
 
 import click
 
@@ -21,12 +21,11 @@ def import_manager(path: str) -> Donald:
     return manager
 
 
-def process_await(fn: Callable[..., Awaitable[TV]]) -> Callable[..., TV]:
+def process_await(fn: Callable[..., Coroutine[Any, Any, TV]]) -> Callable[..., TV]:
     @wraps(fn)
     @click.pass_context
     def wrapper(ctx, *args, **kwargs):
-        loop = ctx.obj["loop"]
-        return loop.run_until_complete(fn(ctx, *args, **kwargs))
+        return asyncio.run(fn(ctx, *args, **kwargs))
 
     return wrapper
 
@@ -50,7 +49,7 @@ def cli(ctx: click.Context, manager: str):
 async def worker(ctx: click.Context, *, scheduler: bool = False, **params):
     """Launch a worker."""
 
-    loop = ctx.obj["loop"]
+    loop = asyncio.get_running_loop()
 
     async def stop():
         loop.remove_signal_handler(signal.SIGTERM)
@@ -77,7 +76,7 @@ async def worker(ctx: click.Context, *, scheduler: bool = False, **params):
 @cli.command(help="Launch a scheduler")
 @process_await
 async def scheduler(ctx: click.Context):
-    loop = ctx.obj["loop"]
+    loop = asyncio.get_running_loop()
 
     async def stop():
         loop.remove_signal_handler(signal.SIGTERM)
@@ -96,8 +95,7 @@ async def scheduler(ctx: click.Context):
 
 
 def main():
-    loop = asyncio.get_event_loop()
-    cli(obj={"loop": loop})
+    cli()
 
 
 if __name__ == "__main__":

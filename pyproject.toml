@@ -3,7 +3,7 @@ name = "donald"
 version = "2.1.0"
 description = "Task manager for asyncio"
 readme = "README.rst"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = { "text" = "MIT License" }
 authors = [{ name = "Kirill Klenov", email = "horneds@gmail.com" }]
 keywords = ["asyncio", "tasks", "queue"]
@@ -13,7 +13,6 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
@@ -24,8 +23,7 @@ dependencies = [
   "aio-pika      >= 9.5.5",
   "click         >= 6.7",
   "crontab       >= 0.22.0",
-  "async-timeout;python_version<'3.11'",
-  "typing_extensions;python_version<'3.11'",
+
 ]
 
 [project.urls]
@@ -64,7 +62,7 @@ python-version = "3.11"
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py310,py311,py312,py313,py314
+envlist = py311,py312,py313,py314
 
 [testenv]
 deps = -e .[tests]
@@ -74,7 +72,7 @@ commands =
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 exclude = [".venv", "docs", "example.py"]
 
 [tool.ruff.lint]

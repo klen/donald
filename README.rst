@@ -45,7 +45,7 @@ Key Features
 Requirements
 =============
 
-- Python 3.10 or newer
+- Python 3.11 or newer
 
 .. _installation:
 

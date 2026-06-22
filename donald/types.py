@@ -16,7 +16,7 @@ from typing import (
 from crontab import CronTab
 
 if TYPE_CHECKING:
-    from ._compat import NotRequired
+    from typing import NotRequired
 
 TWorkerOnFn = Callable[[], Coroutine]
 TVWorkerOnFn = TypeVar("TVWorkerOnFn", bound=TWorkerOnFn)
