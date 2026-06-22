@@ -4,7 +4,7 @@ from abc import abstractmethod
 from asyncio import Future, Queue, get_running_loop, sleep
 from asyncio import timeout as async_timeout
 from pickle import dumps, loads
-from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Coroutine, Mapping
+from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Coroutine, Mapping, cast
 from uuid import uuid4
 
 from aio_pika import DeliveryMode, Exchange, Message, connect_robust
@@ -190,6 +190,7 @@ class RedisBackend(BaseBackend):
                     continue
 
                 for _, entries in msgs:
+                    entries = cast(Any, entries)  # noqa: TC006
                     for msg_id, msg_data in entries:
                         data = msg_data.get(b"data")
                         if data:
@@ -229,6 +230,7 @@ class RedisBackend(BaseBackend):
                     if not msgs:
                         continue
                     for _, entries in msgs:
+                        entries = cast(Any, entries)  # noqa: TC006
                         for msg_id, msg_data in entries:
                             res = loads(msg_data[b"data"])
                             if res.get("correlation_id") == correlation_id:
