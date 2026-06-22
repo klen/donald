@@ -1,11 +1,15 @@
-from .tasks import manager
+from .tasks import TaskSet, make_manager
 
 
 def test_base():
-    assert manager.scheduler._schedule
+    manager = make_manager()
+    tasks = TaskSet(manager)
+    assert tasks.manager.scheduler._schedule
 
 
 async def test_schedule(checklog, sleep):
+    manager = make_manager()
+    tasks = TaskSet(manager)
     async with manager:
         w = manager.create_worker()
         w.start()

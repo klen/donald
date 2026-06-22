@@ -1,10 +1,12 @@
 import pytest
 
-from .tasks import async_task, manager
+from .tasks import TaskSet, make_manager
 
 
 @pytest.fixture
 async def donald():
+    manager = make_manager()
+    tasks = TaskSet(manager)
     manager.setup(backend="amqp")
     assert manager._backend
     assert manager._backend.params
@@ -14,13 +16,14 @@ async def donald():
         w2 = manager.create_worker()
         w1.start()
         w2.start()
-        yield manager
+        yield {"manager": manager, "tasks": tasks}
         await w1.stop()
         await w2.stop()
 
 
 async def test_submit_task(donald, sleep, checklog):
-    res = async_task.submit()
+    tasks = donald["tasks"]
+    res = tasks.async_task.submit()
     assert res
     assert await res
 
@@ -28,7 +31,7 @@ async def test_submit_task(donald, sleep, checklog):
     assert checklog("Run async_task 42")
 
     for n in range(3):
-        assert await async_task.submit(n)
+        assert await tasks.async_task.submit(n)
 
     await sleep(1e-1)
     assert checklog("Run async_task 0")
@@ -37,12 +40,14 @@ async def test_submit_task(donald, sleep, checklog):
 
 
 async def test_submit_and_wait(donald, sleep, checklog):
-    res = await async_task.submit_and_wait()
+    tasks = donald["tasks"]
+    res = await tasks.async_task.submit_and_wait()
     assert res == 42
 
     assert checklog("Run async_task 42")
 
 
 async def test_health_check(donald, sleep, checklog):
-    res = await donald.healthcheck()
+    manager = donald["manager"]
+    res = await manager.healthcheck()
     assert res is True

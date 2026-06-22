@@ -1,11 +1,43 @@
-/.cache
-/.pytest_cache
-/.ropeproject
-/Donald.egg-info
+# Project-specific
+/donald_old
+/done.txt
+/todo.txt
 /.ignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+/.venv
+/env
+/venv
+
+# Build artifacts
 /build
 /dist
-/env
-/todo.txt
-/donald_old
-__pycache__
+*.egg-info/
+.eggs
+
+# Testing / linting
+/.cache
+/.pytest_cache
+/.tox
+/.ruff_cache
+
+# IDEs / editors
+/.ropeproject
+/.idea
+/.vscode
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+
+# Lock files (project-specific)
+*.*lock
