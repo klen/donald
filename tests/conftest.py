@@ -1,7 +1,7 @@
 import asyncio
+import os
 
 import pytest
-from redis import Redis
 
 
 @pytest.fixture()
@@ -21,6 +21,11 @@ def sleep():
     return _sleep
 
 
-@pytest.fixture()
-def redis(redis_url):
-    return Redis.from_url(redis_url)
+@pytest.fixture(scope="session")
+def redis_url():
+    """Provide a Redis URL for integration tests.
+
+    Defaults to localhost. Set REDIS_URL to override.
+    """
+    url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+    return url

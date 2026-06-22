@@ -38,12 +38,14 @@ tests = [
   "pyrefly",
   "pytest",
   "pytest-aio",
-  "pytest-redislite",
   "redis",
   "ruff",
 ]
 dev = ["pre-commit", "bump2version"]
 redis = ["redis"]
+
+[tool.uv]
+package = true
 
 [tool.setuptools]
 packages = ['donald']

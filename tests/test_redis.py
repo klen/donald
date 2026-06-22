@@ -1,12 +1,24 @@
 from uuid import uuid4
 
 import pytest
+import redis
 
 from .tasks import TaskSet, make_manager
 
 
+def _redis_available(url: str) -> bool:
+    try:
+        client = redis.Redis.from_url(url, socket_connect_timeout=1)
+        return client.ping()
+    except Exception:  # noqa: BLE001
+        return False
+
+
 @pytest.fixture
 async def donald(redis_url):
+    if not _redis_available(redis_url):
+        pytest.skip(f"Redis is not available at {redis_url}")
+
     manager = make_manager()
     tasks = TaskSet(manager)
     manager.setup(backend="redis", backend_params={"url": redis_url, "channel": uuid4()})
@@ -15,12 +27,9 @@ async def donald(redis_url):
 
     async with manager:
         w1 = manager.create_worker()
-        # w2 = manager.create_worker()
         w1.start()
-        # w2.start()
         yield {"manager": manager, "tasks": tasks}
         await w1.stop()
-        # await w2.stop()
 
 
 async def test_submit_task(donald, sleep, checklog):
