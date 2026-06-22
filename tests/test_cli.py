@@ -8,7 +8,7 @@ from donald.__main__ import main
 
 def test_cli_help_runs():
     """The CLI should not crash when invoked without arguments."""
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [sys.executable, "-m", "donald", "--help"], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr

@@ -38,7 +38,7 @@ uv run pytest tests
 Avoid unless explicitly requested:
 
 - `make release/minor/major/patch` — version bump + merge + push + potential PyPI release.
-- `git push --tags` / `git push --all` / merging to `master`.
+- `git push --tags` / `git push --all` / merging to `main`.
 - `docker start rabbitmq` — needs local `rabbitmq` container.
 - Hand-editing version strings in `pyproject.toml` / `README.rst`.
 
@@ -52,7 +52,7 @@ Avoid unless explicitly requested:
 
 ## Repo-specific notes
 
-- Work on `develop`; `master` is for releases.
+- Work on `develop`; `main` is for releases.
 - Pre-commit runs ruff, pyrefly, and pytest on push.
 - Backends are registered in `donald/backend.py` via `BACKENDS`.
 - Do not commit, push, or release without explicit user approval.

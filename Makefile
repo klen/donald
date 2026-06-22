@@ -11,32 +11,6 @@ clean:
 	find $(CURDIR) -name "*.orig" -delete
 	find $(CURDIR) -name "__pycache__" -delete
 
-# ==============
-#  Bump version
-# ==============
-
-.PHONY: release
-VERSION?=minor
-# target: release - Bump version
-release:
-	@uv run bump2version $(VERSION)
-	@git checkout master
-	@git merge develop
-	@git checkout develop
-	@git push --all
-	@git push --tags
-
-.PHONY: minor
-minor: release
-
-.PHONY: patch
-patch:
-	make release VERSION=patch
-
-.PHONY: major
-major:
-	make release VERSION=major
-
 # =============
 #  Development
 # =============
@@ -72,3 +46,29 @@ types:
 # target: example - Run example worker via uv
 example:
 	uv run python -m donald -M example.manager worker -S
+
+# ==============
+#  Bump version
+# ==============
+
+.PHONY: release
+VERSION?=minor
+# target: release - Bump version
+release:
+	@uv run bump2version $(VERSION)
+	@git checkout main
+	@git merge develop
+	@git checkout develop
+	@git push --all
+	@git push --tags
+
+.PHONY: minor
+minor: release
+
+.PHONY: patch
+patch:
+	make release VERSION=patch
+
+.PHONY: major
+major:
+	make release VERSION=major
