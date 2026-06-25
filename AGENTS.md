@@ -4,7 +4,7 @@ Donald is a Python asyncio task manager with sync/async tasks, multiple backends
 - **Package:** `donald/` configured in `pyproject.toml`
 - **CLI:** `donald` console script
 - **Tests:** `tests/` using pytest
-- **Docs:** `README.rst`
+- **Docs:** `README.md`
 - **Package manager:** `uv` (lockfile: `uv.lock`)
 
 ## Key files
@@ -40,7 +40,7 @@ Avoid unless explicitly requested:
 - `make release/minor/major/patch` — version bump + merge + push + potential PyPI release.
 - `git push --tags` / `git push --all` / merging to `main`.
 - `docker start rabbitmq` — needs local `rabbitmq` container.
-- Hand-editing version strings in `pyproject.toml` / `README.rst`.
+- Hand-editing version strings in `pyproject.toml` / `README.md`.
 
 ## Files and directories to avoid
 

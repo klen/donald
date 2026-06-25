@@ -1,6 +1,6 @@
 include LICENSE
 include MANIFEST.in
-include README.rst
+include README.md
 include requirements.txt
 
 recursive-include peewee_migrate *
