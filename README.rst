@@ -112,7 +112,15 @@ Initialize a task manager:
 
           # A awaitable function to run on worker error
           'on_error': None
+        },
 
+        # Scheduler params
+        scheduler_params={
+          # Heartbeat file for scheduler healthcheck (cross-process)
+          'heartbeat_file': '/tmp/donald-scheduler.heartbeat',
+
+          # How often to update the heartbeat file (seconds)
+          'heartbeat_interval': 60,
         },
     )
 
@@ -192,6 +200,45 @@ Scheduling Tasks
 
   # Stop it when needed
   manager.scheduler.stop()
+
+.. _healthcheck:
+
+Healthchecks
+============
+
+Donald provides two healthcheck methods for monitoring:
+
+**Worker healthcheck** — submits a ping task and waits for a worker to respond:
+
+.. code:: python
+
+  # Returns True if a worker is alive and processing tasks
+  healthy = await manager.healthcheck(timeout=10)
+
+**Scheduler healthcheck** — reads the heartbeat file written by the scheduler:
+
+.. code:: python
+
+  # Returns True if the scheduler process is alive and heartbeat is fresh
+  healthy = await manager.scheduler_healthcheck()
+
+The scheduler writes PID and a timestamp to a heartbeat file at a
+configurable interval. The healthcheck reads this file and verifies:
+
+- The PID corresponds to a running process (via ``os.kill(pid, 0)``)
+- The last heartbeat timestamp is within ``heartbeat_interval * 2`` seconds
+
+This works cross-process, making it suitable for Docker ``HEALTHCHECK``
+instructions regardless of the backend in use.
+
+**Docker example:**
+
+.. code:: dockerfile
+
+  HEALTHCHECK --interval=30s --retries=3 \
+    CMD python -c "import asyncio; from tasks import manager; exit(0 if asyncio.run(manager.scheduler_healthcheck()) else 1)"
+
+To disable the heartbeat (e.g. for testing), set ``heartbeat_interval=0``.
 
 .. _production:
 
