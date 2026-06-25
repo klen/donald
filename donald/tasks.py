@@ -81,12 +81,12 @@ class TaskWrapper:
         return manager.submit(run)
 
     def schedule(
-        self, interval: TInterval, *, run_immediately: bool = False, backoff: float = 0
+        self, interval: TInterval, *, run_immediately: bool = False
     ) -> Callable[[TaskWrapper], TaskWrapper]:
         manager = self._manager
         if not manager:
             raise RuntimeError("Manager is not set for this task")
-        return manager.schedule(interval, run_immediately=run_immediately, backoff=backoff)(self)
+        return manager.schedule(interval, run_immediately=run_immediately)(self)
 
     def failback(self):
         def wrapper(fn: Callable[Concatenate[Exception, ...], Any]):

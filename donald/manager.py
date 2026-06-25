@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import json
+import os
+from asyncio import Event
 from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
+from pathlib import Path
+from time import time
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Self, cast
 
 from .backend import BACKENDS, BaseBackend
@@ -29,6 +34,7 @@ class Donald:
         "log_config": None,
         "backend": "memory",
         "backend_params": {},
+        "scheduler_params": {},
         "worker_params": cast("TWorkerParams", {}),
     }
 
@@ -36,9 +42,9 @@ class Donald:
 
     def __init__(self: Donald, **params):
         self._params: TManagerParams = self.defaults
-        self.is_started = False
+        self.ready = Event()
         self.setup(**params)
-        self.scheduler = Scheduler()
+        self.scheduler = Scheduler(**self._params.get("scheduler_params", {}))
         self.submissions: set[Task] = set()
         current_manager.value = self
 
@@ -54,8 +60,6 @@ class Donald:
 
     def setup(self: Donald, **params):
         """Setup the manager."""
-        assert not self.is_started, "Manager is already started"
-
         self._params = cast("TManagerParams", dict(self._params, **params))
         self._backend = BACKENDS[self._params["backend"]](
             self._params["backend_params"],
@@ -72,20 +76,20 @@ class Donald:
             await self._backend.connect()
         except Exception as exc:
             logger.exception("Failed to connect backend", exc_info=exc)
-            self.is_started = False
             raise
         else:
-            self.is_started = True
+            self.ready.set()
             logger.info("Tasks manager started")
 
     async def stop(self):
         logger.info("Stopping tasks manager")
+        await self.scheduler.stop()
         try:
             await self._backend.disconnect()
         except Exception as e:  # noqa: BLE001
             logger.error(f"Error while disconnecting backend: {e}")
         finally:
-            self.is_started = False
+            self.ready.clear()
             logger.info("Tasks manager stopped")
 
     def create_worker(self: Donald, **params):
@@ -104,10 +108,10 @@ class Donald:
         await self.stop()
 
     def schedule(
-        self, interval: TInterval, *, run_immediately: bool = False, backoff: float = 0
+        self, interval: TInterval, *, run_immediately: bool = False
     ) -> Callable[[TaskWrapper], TaskWrapper]:
         """Schedule a task to the backend."""
-        return self.scheduler.schedule(interval, run_immediately=run_immediately, backoff=backoff)
+        return self.scheduler.schedule(interval, run_immediately=run_immediately)
 
     def task(
         self,
@@ -141,7 +145,7 @@ class Donald:
 
     def submit(self, run: TaskRun | Callable, *args, **kwargs) -> Task:
         """Submit a task to the backend."""
-        if not self.is_started:
+        if not self.ready.is_set():
             raise ManagerNotReadyError
 
         run = self._assert_run(run, *args, **kwargs)
@@ -152,7 +156,7 @@ class Donald:
 
     async def submit_and_wait(self, run: TaskRun | Callable, *args, timeout=10, **kwargs) -> Any:
         """Submit a task to the backend and wait for result (RPC)."""
-        if not self.is_started:
+        if not self.ready.is_set():
             raise ManagerNotReadyError
 
         run = self._assert_run(run, *args, **kwargs)
@@ -180,6 +184,26 @@ class Donald:
         except Exception as exc:  # noqa: BLE001
             logger.exception("Healthcheck failed", exc_info=exc)
             return False
+
+    async def scheduler_healthcheck(self) -> bool:
+        """Check if the scheduler is healthy.
+
+        Reads the scheduler heartbeat file, verifies the PID is alive
+        and the last heartbeat timestamp is fresh.
+        """
+        scheduler = self.scheduler
+        try:
+            data = json.loads(Path(scheduler.heartbeat_file).read_text())
+        except (OSError, json.JSONDecodeError, KeyError):
+            return False
+
+        try:
+            os.kill(data["pid"], 0)
+
+        except OSError:
+            return False
+
+        return (time() - data["timestamp"]) < (scheduler.heartbeat_interval * 2)
 
 
 async def ping():

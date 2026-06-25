@@ -69,4 +69,5 @@ class TManagerParams(TypedDict):
     backend_params: dict
     log_config: dict | None
     log_level: str
+    scheduler_params: dict
     worker_params: TWorkerParams
