@@ -2,6 +2,8 @@ import asyncio
 
 import pytest
 
+from donald.utils import BackendNotReadyError
+
 from .tasks import TaskSet, make_manager
 
 
@@ -92,6 +94,23 @@ async def test_concurrent_submit_and_wait(donald):
         tasks.async_task.submit_and_wait(3),
     )
     assert results == [1, 2, 3]
+
+
+async def test_disconnect_clears_backend():
+    """disconnect() should set is_connected=False and clear the internal queue."""
+    manager = make_manager()
+    async with manager:
+        backend = manager._backend
+        await backend.connect()
+        assert backend.is_connected is True
+        assert backend.__backend__ is not None
+
+        await backend.disconnect()
+        assert backend.is_connected is False
+        assert backend.__backend__ is None
+
+        with pytest.raises(BackendNotReadyError):
+            _ = backend.rx
 
 
 async def test_subscribe_preserves_pending_messages(sleep):

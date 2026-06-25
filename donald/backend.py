@@ -92,6 +92,10 @@ class MemoryBackend(BaseBackend):
         if self.__backend__ is None:
             self.__backend__ = Queue()
 
+    async def _disconnect(self):
+        self.is_connected = False
+        self.__backend__ = None
+
     async def _submit(self, data):
         self.rx.put_nowait(data)
         return True
