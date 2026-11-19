@@ -230,7 +230,11 @@ class RedisBackend(BaseBackend):
         try:
             async with async_timeout(timeout):
                 while True:
-                    msgs = await self.redis.xread({stream: "0"}, block=1000, count=1)
+                    # xread is typed as a union of shapes (RESP2/RESP3); streams come as pairs
+                    msgs = cast(
+                        "list[tuple[Any, Any]]",
+                        await self.redis.xread({stream: "0"}, block=1000, count=1),
+                    )
                     if not msgs:
                         continue
                     for _, entries in msgs:

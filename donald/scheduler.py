@@ -126,7 +126,7 @@ class Scheduler:
             timer = interval.total_seconds
 
         elif isinstance(interval, CronTab):
-            timer = lambda: interval.next(default_utc=True)  # type: ignore[union-attr]
+            timer = lambda: interval.next(default_utc=True)  # type: ignore[attr-defined]
 
         else:
             timer = lambda: float(interval)  # type: ignore[arg-type]

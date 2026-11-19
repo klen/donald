@@ -7,7 +7,7 @@ from .utils import current_manager, to_coroutinefn
 
 if TYPE_CHECKING:
     from asyncio import Task
-    from typing import Concatenate, Unpack
+    from typing import Unpack
 
     from .manager import Donald
     from .types import TInterval, TRunArgs, TTaskParams, TTaskParamsPartial
@@ -91,8 +91,8 @@ class TaskWrapper(Generic[P, R]):
             raise RuntimeError("Manager is not set for this task")
         return manager.schedule(interval, run_immediately=run_immediately)(self)
 
-    def failback(self):
-        def wrapper(fn: Callable[Concatenate[Exception, ...], Any]):
+    def failback(self) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        def wrapper(fn: Callable[..., Any]) -> Callable[..., Any]:
             self._failback = to_coroutinefn(fn)
             return fn
 

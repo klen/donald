@@ -119,8 +119,12 @@ class Donald:
     def task(
         self, fn: Any = ..., /, **params: Unpack[TTaskParamsPartial]
     ) -> Callable[[Callable[P, Awaitable[R]] | Callable[P, R]], TaskWrapper[P, R]]:
-        """Decorator to wrap a function into a Task object."""
+        """Decorator to wrap a function into a Task object.
 
+        The union of callables keeps both sync and async tasks precise for pyrefly. mypy cannot
+        infer ParamSpec across a union (both arms resolve to `Never`), so it reads vibe's
+        `TasksManager` override instead — drop that workaround when mypy handles it.
+        """
         if fn is not ...:
             raise ValueError(
                 "Task decorator must be used with parentheses (e.g. @task() or @task(**params))"
@@ -137,7 +141,7 @@ class Donald:
             return run
 
         elif callable(run):
-            wrapper = TaskWrapper(self, run)
+            wrapper: TaskWrapper[Any, Any] = TaskWrapper(self, run)
             return wrapper.get_run(*args, kwargs=kwargs)
 
         else:
