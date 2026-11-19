@@ -5,7 +5,7 @@ from donald.utils import current_manager
 
 # Module-level TaskWrappers are kept for worker import compatibility.
 # Tests should use make_manager() + TaskSet to avoid shared state.
-_default_manager = Donald(log_level="DEBUG", worker={"max_tasks": 2})
+_default_manager = Donald(log_level="DEBUG", worker_params={"max_tasks": 2})
 
 
 @_default_manager.task()
@@ -89,4 +89,4 @@ class TaskSet:
 
 def make_manager() -> Donald:
     """Create a fresh Donald manager for tests."""
-    return Donald(log_level="DEBUG", worker={"max_tasks": 2})
+    return Donald(log_level="DEBUG", worker_params={"max_tasks": 2})

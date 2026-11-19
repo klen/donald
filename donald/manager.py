@@ -7,7 +7,7 @@ from asyncio.tasks import Task, create_task
 from logging.config import dictConfig
 from pathlib import Path
 from time import time
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Self, cast
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, ClassVar, Self, cast
 
 from .backend import BACKENDS, BaseBackend
 from .utils import ManagerNotReadyError, current_manager, logger
@@ -17,8 +17,11 @@ if TYPE_CHECKING:
     from typing import Unpack
 
     from .types import (
+        P,
+        R,
         TInterval,
         TManagerParams,
+        TManagerParamsPartial,
         TTaskParamsPartial,
         TVWorkerOnErrFn,
         TVWorkerOnFn,
@@ -40,7 +43,7 @@ class Donald:
 
     _backend: BaseBackend
 
-    def __init__(self: Donald, **params):
+    def __init__(self: Donald, **params: Unpack[TManagerParamsPartial]):
         self._params: TManagerParams = self.defaults
         self.ready = Event()
         self.setup(**params)
@@ -52,13 +55,13 @@ class Donald:
         return f"<Donald {self._params['backend']}>"
 
     @classmethod
-    async def create(cls, **params) -> Self:
+    async def create(cls, **params: Unpack[TManagerParamsPartial]) -> Self:
         """Create a new instance of Donald and start it."""
         self = cls(**params)
         await self.start()
         return self
 
-    def setup(self: Donald, **params):
+    def setup(self: Donald, **params: Unpack[TManagerParamsPartial]):
         """Setup the manager."""
         self._params = cast("TManagerParams", dict(self._params, **params))
         self._backend = BACKENDS[self._params["backend"]](
@@ -109,16 +112,13 @@ class Donald:
 
     def schedule(
         self, interval: TInterval, *, run_immediately: bool = False
-    ) -> Callable[[TaskWrapper], TaskWrapper]:
+    ) -> Callable[[TaskWrapper[P, R]], TaskWrapper[P, R]]:
         """Schedule a task to the backend."""
         return self.scheduler.schedule(interval, run_immediately=run_immediately)
 
     def task(
-        self,
-        fn: Any = ...,
-        /,
-        **params: Unpack[TTaskParamsPartial],
-    ) -> Callable[[Callable], TaskWrapper]:
+        self, fn: Any = ..., /, **params: Unpack[TTaskParamsPartial]
+    ) -> Callable[[Callable[P, Awaitable[R]] | Callable[P, R]], TaskWrapper[P, R]]:
         """Decorator to wrap a function into a Task object."""
 
         if fn is not ...:
@@ -126,12 +126,12 @@ class Donald:
                 "Task decorator must be used with parentheses (e.g. @task() or @task(**params))"
             ) from None
 
-        def wrapper(fn: Callable) -> TaskWrapper:
+        def wrapper(fn: Callable[..., Any]) -> TaskWrapper[Any, Any]:
             return TaskWrapper(self, fn, **params)
 
         return wrapper
 
-    def _assert_run(self, run: TaskRun | Callable, *args, **kwargs) -> TaskRun:
+    def _assert_run(self, run: TaskRun | Callable[..., Any], *args: Any, **kwargs: Any) -> TaskRun:
         """Assert that the run is a TaskRun or convert it to one."""
         if isinstance(run, TaskRun):
             return run
@@ -143,7 +143,7 @@ class Donald:
         else:
             raise TypeError("run must be a TaskRun or a callable function")
 
-    def submit(self, run: TaskRun | Callable, *args, **kwargs) -> Task:
+    def submit(self, run: TaskRun | Callable[..., Any], *args: Any, **kwargs: Any) -> Task[Any]:
         """Submit a task to the backend."""
         if not self.ready.is_set():
             raise ManagerNotReadyError
@@ -154,7 +154,9 @@ class Donald:
         task.add_done_callback(self.submissions.discard)
         return task
 
-    async def submit_and_wait(self, run: TaskRun | Callable, *args, timeout=10, **kwargs) -> Any:
+    async def submit_and_wait(
+        self, run: TaskRun | Callable[..., Any], *args: Any, timeout: float = 10, **kwargs: Any
+    ) -> Any:
         """Submit a task to the backend and wait for result (RPC)."""
         if not self.ready.is_set():
             raise ManagerNotReadyError
@@ -177,7 +179,7 @@ class Donald:
         self._params["worker_params"]["on_error"] = fn
         return fn
 
-    async def healthcheck(self, timeout=10) -> bool:
+    async def healthcheck(self, timeout: float = 10) -> bool:
         try:
             result = await self.submit_and_wait(ping, timeout=timeout)
             return result == "pong"

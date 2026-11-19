@@ -5,10 +5,10 @@ from functools import wraps
 from importlib import import_module
 from inspect import iscoroutinefunction
 from threading import local
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Final, overload
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Coroutine, Final, overload
 
 if TYPE_CHECKING:
-    from donald.types import TV, TVAsyncFn
+    from donald.types import P, R
 
 
 def import_obj(path: str) -> Any:
@@ -23,11 +23,11 @@ def import_obj(path: str) -> Any:
 
 
 @overload
-def to_coroutinefn(fn: TVAsyncFn) -> TVAsyncFn: ...
+def to_coroutinefn(fn: Callable[P, Awaitable[R]]) -> Callable[P, Coroutine[Any, Any, R]]: ...
 
 
 @overload
-def to_coroutinefn(fn: Callable[..., TV]) -> Callable[..., Coroutine[Any, Any, TV]]: ...
+def to_coroutinefn(fn: Callable[P, R]) -> Callable[P, Coroutine[Any, Any, R]]: ...
 
 
 def to_coroutinefn(fn):

@@ -1,20 +1,21 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Coroutine, Generic, cast
 
+from .types import P, R
 from .utils import current_manager, to_coroutinefn
 
 if TYPE_CHECKING:
+    from asyncio import Task
     from typing import Concatenate, Unpack
 
-if TYPE_CHECKING:
     from .manager import Donald
     from .types import TInterval, TRunArgs, TTaskParams, TTaskParamsPartial
 
 MAX_RETRIES = 100
 
 
-class TaskWrapper:
+class TaskWrapper(Generic[P, R]):
     """Wrap a given function into a Task object."""
 
     __slots__ = ("_failback", "_fn", "_manager", "_params")
@@ -22,7 +23,7 @@ class TaskWrapper:
     def __init__(  # noqa: PLR0913
         self,
         manager: Donald | None,
-        fn: Callable,
+        fn: Callable[P, Any],
         *,
         bind: bool = False,
         delay: float = 0,
@@ -35,8 +36,8 @@ class TaskWrapper:
         _validate_retries_max(retries_max)
 
         self._manager = manager
-        self._fn = to_coroutinefn(fn)
-        self._failback: Callable | None = None
+        self._fn: Callable[P, Coroutine[Any, Any, R]] = to_coroutinefn(fn)
+        self._failback: Callable[..., Awaitable[Any]] | None = None
         self._params: TTaskParams = {
             "bind": bind,
             "delay": delay,
@@ -49,40 +50,42 @@ class TaskWrapper:
     def __repr__(self):
         return f"<TaskWrapper {self._fn.__qualname__}>"
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Coroutine[Any, Any, R]:
         return self._fn(*args, **kwargs)
 
     @staticmethod
     def import_path(fn: Callable) -> str:
         return f"{fn.__module__}.{fn.__qualname__}"
 
-    def get_run(self, *args, kwargs: dict, **params: Unpack[TTaskParamsPartial]) -> TaskRun:
+    def get_run(
+        self, *args: Any, kwargs: dict[str, Any], **params: Unpack[TTaskParamsPartial]
+    ) -> TaskRun:
         retries_max = params.get("retries_max")
         if retries_max is not None:
             _validate_retries_max(retries_max)
         task_params = cast("TTaskParams", dict(self._params, **params))
         return TaskRun(self.import_path(self._fn), args, kwargs or {}, task_params)
 
-    def submit(self, *args, **kwargs):
+    def submit(self, *args: P.args, **kwargs: P.kwargs) -> Task[Any]:
         return self.apply_submit(*args, kwargs=kwargs)
 
-    async def submit_and_wait(self, *args, timeout=10, **kwargs):
+    async def submit_and_wait(self, *args: Any, timeout: float = 10, **kwargs: Any) -> R:
         manager = self._manager
         if not manager:
             raise RuntimeError("Manager is not set for this task")
         run = self.get_run(*args, kwargs=kwargs or {})
         return await manager.submit_and_wait(run, timeout=timeout)
 
-    def apply_submit(self, *args, kwargs: dict | None = None, **params):
+    def apply_submit(
+        self, *args: Any, kwargs: dict[str, Any] | None = None, **params: Unpack[TTaskParamsPartial]
+    ) -> Task[Any]:
         manager = self._manager
         if not manager:
             raise RuntimeError("Manager is not set for this task")
         run = self.get_run(*args, kwargs=kwargs or {}, **params)
         return manager.submit(run)
 
-    def schedule(
-        self, interval: TInterval, *, run_immediately: bool = False
-    ) -> Callable[[TaskWrapper], TaskWrapper]:
+    def schedule(self, interval: TInterval, *, run_immediately: bool = False) -> TaskWrapper[P, R]:
         manager = self._manager
         if not manager:
             raise RuntimeError("Manager is not set for this task")
@@ -103,8 +106,8 @@ class TaskRun:
     def __init__(
         self,
         path: str,
-        args: tuple,
-        kwargs: dict,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
         params: TTaskParams,
     ):
         if params.get("bind"):

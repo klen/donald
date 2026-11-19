@@ -4,10 +4,11 @@ from datetime import timedelta
 from typing import (
     TYPE_CHECKING,
     Any,
+    Awaitable,
     Callable,
-    Coroutine,
     Literal,
     Optional,
+    ParamSpec,
     TypedDict,
     TypeVar,
     Union,
@@ -18,13 +19,16 @@ from crontab import CronTab
 if TYPE_CHECKING:
     from typing import NotRequired
 
-TWorkerOnFn = Callable[[], Coroutine]
+P = ParamSpec("P")
+R = TypeVar("R")
+
+TWorkerOnFn = Callable[[], Awaitable[Any]]
 TVWorkerOnFn = TypeVar("TVWorkerOnFn", bound=TWorkerOnFn)
-TWorkerOnErrFn = Callable[[BaseException], Coroutine]
+TWorkerOnErrFn = Callable[[BaseException], Awaitable[Any]]
 TVWorkerOnErrFn = TypeVar("TVWorkerOnErrFn", bound=TWorkerOnErrFn)
 
-TV = TypeVar("TV", bound=Any)
-TAsyncFn = Callable[..., Coroutine]
+TV = TypeVar("TV")
+TAsyncFn = Callable[..., Awaitable[Any]]
 TVAsyncFn = TypeVar("TVAsyncFn", bound=TAsyncFn)
 
 TBackendType = Literal["memory", "redis", "amqp"]
@@ -52,10 +56,10 @@ class TTaskParamsPartial(TypedDict):
     retries_backoff_max: NotRequired[float]
 
 
-TRunArgs = tuple[str, tuple, dict[str, Any], TTaskParams]
+TRunArgs = tuple[str, tuple[Any, ...], dict[str, Any], TTaskParams]
 
 
-class TWorkerParams(TypedDict):
+class TWorkerParams(TypedDict, total=False):
     max_tasks: Optional[int]
     on_start: Optional[TWorkerOnFn]
     on_stop: Optional[TWorkerOnFn]
@@ -64,10 +68,24 @@ class TWorkerParams(TypedDict):
     task_defaults: Optional[TTaskParamsPartial]
 
 
+class TSchedulerParams(TypedDict, total=False):
+    heartbeat_interval: float
+    heartbeat_file: str
+
+
 class TManagerParams(TypedDict):
     backend: TBackendType
-    backend_params: dict
-    log_config: dict | None
+    backend_params: dict[str, Any]
+    log_config: dict[str, Any] | None
     log_level: str
-    scheduler_params: dict
+    scheduler_params: TSchedulerParams
+    worker_params: TWorkerParams
+
+
+class TManagerParamsPartial(TypedDict, total=False):
+    backend: TBackendType
+    backend_params: dict[str, Any]
+    log_config: dict[str, Any] | None
+    log_level: str
+    scheduler_params: TSchedulerParams
     worker_params: TWorkerParams

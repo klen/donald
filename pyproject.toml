@@ -51,7 +51,7 @@ donald = ["py.typed"]
 addopts = "-xsvl"
 
 [tool.pyrefly]
-project-includes = ["donald"]
+project-includes = ["donald", "tests/test_typing.py"]
 python-version = "3.11"
 
 [tool.ruff]
