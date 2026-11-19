@@ -94,6 +94,7 @@ class TaskWrapper(Generic[P, R]):
     def failback(self):
         def wrapper(fn: Callable[Concatenate[Exception, ...], Any]):
             self._failback = to_coroutinefn(fn)
+            return fn
 
         return wrapper
 
