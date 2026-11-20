@@ -118,12 +118,12 @@ class Donald:
 
     def task(
         self, fn: Any = ..., /, **params: Unpack[TTaskParamsPartial]
-    ) -> Callable[[Callable[P, Awaitable[R]] | Callable[P, R]], TaskWrapper[P, R]]:
-        """Decorator to wrap a function into a Task object.
+    ) -> Callable[[Callable[P, Awaitable[R]]], TaskWrapper[P, R]]:
+        """Decorator to wrap a coroutine function into a Task object.
 
-        The union of callables keeps both sync and async tasks precise for pyrefly. mypy cannot
-        infer ParamSpec across a union (both arms resolve to `Never`), so it reads vibe's
-        `TasksManager` override instead — drop that workaround when mypy handles it.
+        Tasks must be `async def`: mypy cannot infer ParamSpec through a union of sync and async
+        callables (both arms collapse to `Never`). A sync function still runs, wrapped by
+        `to_coroutinefn` in the loop, it's just untyped.
         """
         if fn is not ...:
             raise ValueError(

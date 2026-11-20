@@ -101,7 +101,7 @@ raises `ValueError`.
 
 ```python
 @manager.task()
-def sync_task(x):        # sync functions run in the loop, not in a thread
+async def my_task(x):    # tasks must be async, see below
     return x + 1
 
 
@@ -109,6 +109,11 @@ def sync_task(x):        # sync functions run in the loop, not in a thread
 async def slow_task(x):
     ...
 ```
+
+Tasks are typed as `async def`. A plain function still runs (it is wrapped by
+`to_coroutinefn` and executes in the loop, not in a thread), but the decorator
+signature is async-only: mypy cannot infer `ParamSpec` through a union of sync
+and async callables. Wrap sync code in `async def` instead.
 
 Local functions cannot be tasks: the worker imports the task by
 `module.qualname`, so the function must be defined at module level.

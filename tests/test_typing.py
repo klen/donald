@@ -17,13 +17,8 @@ if TYPE_CHECKING:
     async def async_task(x: int, *, y: str = "") -> int:
         return x
 
-    @manager.task()
-    def sync_task(x: int) -> str:
-        return str(x)
-
     # The decorator keeps the signature and the result type of the wrapped function.
     assert_type(async_task(1, y="a"), Coroutine[Any, Any, int])
-    assert_type(sync_task(1), Coroutine[Any, Any, str])
 
     # The parameters survive scheduling and submitting.
     wrapper = async_task
