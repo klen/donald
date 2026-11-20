@@ -30,17 +30,19 @@ async def test_schedule(checklog, sleep):
     assert checklog("Run scheduled_task 42", 4)
 
 
-async def test_scheduler_healthcheck_not_started():
+async def test_scheduler_healthcheck_not_started(tmp_path):
     """Before scheduler starts, heartbeat file doesn't exist → unhealthy."""
     manager = make_manager()
     TaskSet(manager)
+    manager.scheduler.heartbeat_file = str(tmp_path / "heartbeat")
     assert await manager.scheduler_healthcheck() is False
 
 
-async def test_scheduler_healthcheck_started_and_stopped():
+async def test_scheduler_healthcheck_started_and_stopped(tmp_path):
     """After start → healthy, after stop → heartbeat file removed → unhealthy."""
     manager = make_manager()
     TaskSet(manager)
+    manager.scheduler.heartbeat_file = str(tmp_path / "heartbeat")
     await manager.start()
     manager.scheduler.heartbeat_interval = 0.1
     manager.scheduler.start()
@@ -50,10 +52,11 @@ async def test_scheduler_healthcheck_started_and_stopped():
     assert await manager.scheduler_healthcheck() is False
 
 
-async def test_manager_scheduler_healthcheck(checklog, sleep):
+async def test_manager_scheduler_healthcheck(checklog, sleep, tmp_path):
     """Manager.scheduler_healthcheck() via heartbeat file."""
     manager = make_manager()
     tasks = TaskSet(manager)
+    manager.scheduler.heartbeat_file = str(tmp_path / "heartbeat")
     manager.scheduler.heartbeat_interval = 0.1
     await manager.start()
 
